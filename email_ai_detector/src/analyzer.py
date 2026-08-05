@@ -4,12 +4,9 @@ import re
 import glob
 from email import policy
 from email.parser import BytesParser
-from email.header import decode_header
-
 import requests
-
 from config import Config
-from utils import ensure_dir, get_timestamp, truncate_text, clean_string, clean_json_data, save_json
+from utils import ensure_dir, get_timestamp, truncate_text
 
 
 class EmailAIAnalyzer:
@@ -22,72 +19,33 @@ class EmailAIAnalyzer:
         }
         print(f"Анализатор инициализирован. API-ключ: {api_key[:8]}...")
 
-    def decode_email_header(self, header):
-        if header is None:
-            return ""
-
-        if isinstance(header, str):
-            try:
-                for encoding in ['utf-8', 'latin-1', 'cp1251', 'koi8-r']:
-                    try:
-                        return header.encode('latin-1').decode(encoding)
-                    except (UnicodeEncodeError, UnicodeDecodeError):
-                        continue
-                return clean_string(header)
-            except Exception:
-                return clean_string(header)
-
-        try:
-            decoded_parts = []
-            for part, encoding in decode_header(header):
-                if isinstance(part, bytes):
-                    try:
-                        if encoding:
-                            decoded_parts.append(part.decode(encoding, errors='ignore'))
-                        else:
-                            for enc in ['utf-8', 'latin-1', 'cp1251', 'koi8-r']:
-                                try:
-                                    decoded_parts.append(part.decode(enc))
-                                    break
-                                except UnicodeDecodeError:
-                                    continue
-                            else:
-                                decoded_parts.append(part.decode('utf-8', errors='ignore'))
-                    except Exception:
-                        decoded_parts.append(str(part))
-                else:
-                    decoded_parts.append(str(part))
-            return clean_string(''.join(decoded_parts))
-        except Exception:
-            return clean_string(str(header))
-
     def load_email_from_file(self, file_path):
         try:
             with open(file_path, "rb") as f:
                 msg = BytesParser(policy=policy.default).parse(f)
 
-            subject = self.decode_email_header(msg.get("Subject", "Без темы"))
-            sender = self.decode_email_header(msg.get("From", "Неизвестный отправитель"))
+            subject_raw = msg.get("Subject", "Без темы")
+            sender_raw = msg.get("From", "Неизвестный отправитель")
 
-            subject = clean_string(subject)
-            sender = clean_string(sender)
+            try:
+                subject = subject_raw.encode('latin-1').decode('utf-8')
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                subject = subject_raw.encode('utf-8', errors='ignore').decode('utf-8')
+
+            try:
+                sender = sender_raw.encode('latin-1').decode('utf-8')
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                sender = sender_raw.encode('utf-8', errors='ignore').decode('utf-8')
 
             html_body = ""
-
             if msg.is_multipart():
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
-                        try:
-                            html_body = part.get_content()
-                            break
-                        except Exception:
-                            continue
+                        html_body = part.get_content()
+                        break
             else:
                 if msg.get_content_type() == "text/html":
-                    try:
-                        html_body = msg.get_content()
-                    except Exception:
-                        html_body = ""
+                    html_body = msg.get_content()
 
             if not html_body:
                 try:
@@ -99,10 +57,7 @@ class EmailAIAnalyzer:
                 print(f"Письмо {file_path} не содержит HTML")
                 return None
 
-            html_body = clean_string(html_body)
-
             print(f"Загружено письмо: {subject}")
-
             return {
                 "subject": subject,
                 "sender": sender,
@@ -113,155 +68,213 @@ class EmailAIAnalyzer:
             print(f"Ошибка загрузки {file_path}: {e}")
             return None
 
-    def analyze_email(self, email_html, model=Config.DEFAULT_MODEL):
-        email_html = clean_string(email_html)
+    def split_html_into_blocks(self, html):
+        if len(html) > 10000:
+            html = html[:10000] + "..."
+            print(f" HTML обрезан до 10000 символов")
 
-        html_preview = email_html[:Config.MAX_HTML_LENGTH]
-        if len(email_html) > Config.MAX_HTML_LENGTH:
-            html_preview += "\n\n... (HTML обрезан для экономии места)"
+        blocks = []
 
-        prompt = f"""
-    Ты — эксперт по обнаружению AI-сгенерированных писем.
+        table_pattern = r'(<table[^>]*>.*?</table>)'
+        tables = re.findall(table_pattern, html, re.DOTALL | re.IGNORECASE)
+        for i, table in enumerate(tables):
+            blocks.append({
+                'type': 'table',
+                'content': table,
+                'position': f'table_{i}'
+            })
 
-    Проанализируй HTML-код письма.
+        div_pattern = r'(<div[^>]*class=["\'](?:section|content|main|header|footer)[^"\']*["\'][^>]*>.*?</div>)'
+        divs = re.findall(div_pattern, html, re.DOTALL | re.IGNORECASE)
+        for i, div in enumerate(divs):
+            blocks.append({
+                'type': 'div_section',
+                'content': div,
+                'position': f'section_{i}'
+            })
 
-    Проверь:
-    1. Структурные аномалии: глубокая вложенность таблиц, пустые ячейки, странные inline-стили.
-    2. Комментарии: HTML-комментарии, скрытые подсказки, служебные метки.
-    3. Шаблонные элементы: {{name}}, {{email}}, {{variable}}, повторяющиеся конструкции.
+        list_pattern = r'(<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>)'
+        lists = re.findall(list_pattern, html, re.DOTALL | re.IGNORECASE)
+        for i, lst in enumerate(lists):
+            blocks.append({
+                'type': 'list',
+                'content': lst,
+                'position': f'list_{i}'
+            })
+
+        if not blocks:
+            blocks.append({
+                'type': 'text_block',
+                'content': html,
+                'position': 'full_text'
+            })
+
+        return blocks
+
+    def analyze_block(self, block_html, model=Config.DEFAULT_MODEL):
+        clean_html = block_html.encode('utf-8', errors='ignore').decode('utf-8')
+        if len(clean_html) > 2000:
+            clean_html = clean_html[:2000] + "..."
+
+        prompt = f"""Analyze this HTML fragment for AI-generated patterns. 
+    Return ONLY JSON.
+
+    Flags to detect:
+    - TOO_DEEP_NESTING (nested tables > 5 levels)
+    - EMPTY_CELL (empty table cells)
+    - SUSPICIOUS_COMMENT (<!-- Generated -->)
+    - TEMPLATE_VARIABLE ({{name}})
+    - DUPLICATE_STYLES (repeated inline styles)
 
     HTML:
-    {html_preview}
+    {clean_html}
 
-    Ответь ТОЛЬКО JSON.
-
-    Формат:
-    {{
-        "ai_probability": 85,
-        "suspicious_elements": [
-            {{
-                "type": "comment",
-                "content": "<!-- Generated -->",
-                "reason": "Служебный комментарий"
-            }}
-        ],
-        "summary": "Краткое описание"
-    }}
-
-    Не добавляй текст до или после JSON.
-    """
+    JSON:
+    {{"ai_probability": 0-100, "flags": [], "summary": ""}}"""
 
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "Ты эксперт по безопасности."},
+                {"role": "system", "content": "You are an HTML security expert."},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": Config.TEMPERATURE,
-            "top_p": Config.TOP_P,
-            "max_tokens": 1000
+            "temperature": 0.1,
+            "top_p": 0.8
         }
 
         try:
-            print(f"Отправка запроса к модели {model}...")
-
-            json_data = json.dumps(data, ensure_ascii=False).encode('utf-8', errors='ignore')
+            print(f"  → Анализ блока ({len(clean_html)} символов)...")
 
             response = requests.post(
                 self.base_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                data=json.dumps(data, ensure_ascii=False).encode('utf-8'),
+                headers=self.headers,
+                json=data,
                 timeout=Config.REQUEST_TIMEOUT
             )
 
-            if response.status_code != 200:
-                error_text = response.text[:200]
-                print(f"Ошибка сервера: {error_text}")
-                return {"error": f"HTTP {response.status_code}: {error_text}"}
+            if response.status_code == 200:
+                result = response.json()
+                if "choices" in result:
+                    content = result["choices"][0]["message"]["content"]
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        parsed = json.loads(json_match.group())
+                        return {
+                            "ai_probability": parsed.get("ai_probability", 0),
+                            "flags": parsed.get("flags", []),
+                            "summary": parsed.get("summary", "")
+                        }
+                return {"ai_probability": 0, "flags": [], "summary": "Ошибка парсинга"}
 
-            result = response.json()
-
-            if "choices" not in result:
-                return {"error": "Нет choices в ответе API"}
-
-            content = result["choices"][0]["message"]["content"]
-            content = clean_string(content)
-
-            try:
-                json_match = re.search(r"\{.*\}", content, re.DOTALL)
-                if json_match:
-                    parsed = json.loads(json_match.group())
-                    print(f"AI вероятность: {parsed.get('ai_probability', '?')}%")
-                    return parsed
-            except Exception:
-                pass
-
-            return {"raw_response": content}
+            print(f"HTTP {response.status_code}")
+            return {"ai_probability": 0, "flags": [], "summary": f"HTTP {response.status_code}"}
 
         except Exception as e:
-            return {"error": clean_string(str(e))}
+            print(f"Ошибка: {str(e)[:50]}")
+            return {"ai_probability": 0, "flags": [], "summary": str(e)[:50]}
+
+    def analyze_email_blocks(self, email_html, model=Config.DEFAULT_MODEL):
+        blocks = self.split_html_into_blocks(email_html)
+        results = []
+
+        for block in blocks:
+            block_result = self.analyze_block(block['content'], model)
+            results.append({
+                'block_type': block['type'],
+                'position': block['position'],
+                'ai_score': block_result.get('ai_probability', 0),
+                'flags': block_result.get('flags', []),
+                'summary': block_result.get('summary', '')
+            })
+
+        global_score = self.calculate_global_score(results)
+        global_flags = self.extract_global_flags(results)
+        high_risk = [b for b in results if b['ai_score'] > 70]
+
+        return {
+            'blocks': results,
+            'global_ai_score': global_score,
+            'global_flags': global_flags,
+            'high_risk_blocks': high_risk
+        }
+
+    def calculate_global_score(self, block_results):
+        if not block_results:
+            return 0
+        scores = [b.get('ai_score', 0) for b in block_results if b.get('ai_score', 0) > 0]
+        if not scores:
+            return 0
+        return round(sum(scores) / len(scores))
+
+    def extract_global_flags(self, block_results):
+        all_flags = []
+        for block in block_results:
+            for flag in block.get('flags', []):
+                if flag not in all_flags:
+                    all_flags.append(flag)
+        return all_flags
 
     def save_results(self, email_data, analysis_result):
         ensure_dir(Config.ANALYSIS_RESULTS_DIR)
-
-        filename = (
-            f"{Config.ANALYSIS_RESULTS_DIR}/"
-            f"analysis_{get_timestamp()}.json"
-        )
+        filename = f"{Config.ANALYSIS_RESULTS_DIR}/analysis_{get_timestamp()}.json"
 
         result = {
             "timestamp": get_timestamp(),
             "email": {
-                "subject": clean_string(email_data.get("subject")),
-                "sender": clean_string(email_data.get("sender")),
-                "html_preview": clean_string(truncate_text(email_data.get("html", ""), 500))
+                "subject": email_data.get("subject"),
+                "sender": email_data.get("sender"),
+                "html_preview": truncate_text(email_data.get("html", ""), 500)
             },
-            "analysis": clean_json_data(analysis_result)  # Используем рекурсивную очистку
+            "analysis": {
+                "global_ai_score": analysis_result.get("global_ai_score", 0),
+                "global_flags": analysis_result.get("global_flags", []),
+                "high_risk_blocks": analysis_result.get("high_risk_blocks", []),
+                "blocks": analysis_result.get("blocks", [])
+            }
         }
 
-        save_json(result, filename)
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
         print(f"Сохранено: {filename}")
         return filename
 
     def process_directory(self, dir_path, model=Config.DEFAULT_MODEL):
         eml_files = glob.glob(os.path.join(dir_path, "*.eml"))
-
         if not eml_files:
             print(f"В папке {dir_path} нет .eml файлов")
             return []
 
         print(f"\nНайдено {len(eml_files)} писем")
-
         all_results = []
 
         for idx, file_path in enumerate(eml_files, 1):
             print(f"\n[{idx}/{len(eml_files)}] {os.path.basename(file_path)}")
-
             email_data = self.load_email_from_file(file_path)
             if not email_data:
                 continue
 
-            analysis = self.analyze_email(email_data["html"], model)
+            print(f"Анализ письма: {email_data.get('subject', '')[:30]}...")
+            print(f"HTML длина: {len(email_data['html'])} символов")
+            analysis = self.analyze_email_blocks(email_data["html"], model)
 
             entry = {
-                "file": clean_string(os.path.basename(file_path)),
+                "file": os.path.basename(file_path),
                 "email": {
-                    "subject": clean_string(email_data.get("subject")),
-                    "sender": clean_string(email_data.get("sender"))
+                    "subject": email_data.get("subject"),
+                    "sender": email_data.get("sender")
                 },
                 "analysis": analysis
             }
-
             all_results.append(entry)
 
-            if "ai_probability" in analysis:
-                print(f"AI: {analysis['ai_probability']}%")
-                print(f"{analysis.get('summary', '')}")
+            if "global_ai_score" in analysis:
+                print(f"Глобальный AI: {analysis['global_ai_score']}%")
+                print(f"Найдено блоков: {len(analysis.get('blocks', []))}")
+                print(f"Флаги: {', '.join(analysis.get('global_flags', []))}")
 
-        save_json(all_results, Config.FULL_ANALYSIS_PATH)
+        with open(Config.FULL_ANALYSIS_PATH, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2, ensure_ascii=False)
+
         print(f"\nПолный отчет: {Config.FULL_ANALYSIS_PATH}")
-
         return all_results
