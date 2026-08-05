@@ -20,4 +20,4 @@ class Config:
     TEMPERATURE = 0.2
     TOP_P = 0.8
     MAX_HTML_LENGTH = 8000
-    REQUEST_TIMEOUT = 90
+    REQUEST_TIMEOUT = 120
