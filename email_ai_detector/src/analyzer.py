@@ -5,8 +5,9 @@ import glob
 from email import policy
 from email.parser import BytesParser
 import requests
-from config import Config
-from utils import ensure_dir, get_timestamp, truncate_text
+from src.config import Config
+from src.utils import ensure_dir, get_timestamp, truncate_text
+from src.engine import analyze_chunk_vector
 
 
 class EmailAIAnalyzer:
@@ -156,6 +157,11 @@ class EmailAIAnalyzer:
                 result = response.json()
                 if "choices" in result:
                     content = result["choices"][0]["message"]["content"]
+                    
+                    print("\n===== LLM RAW RESPONSE =====")
+                    print(content)
+                    print("============================\n")
+
                     json_match = re.search(r'\{.*\}', content, re.DOTALL)
                     if json_match:
                         parsed = json.loads(json_match.group())
@@ -170,34 +176,91 @@ class EmailAIAnalyzer:
             return {"ai_probability": 0, "flags": [], "summary": f"HTTP {response.status_code}"}
 
         except Exception as e:
-            print(f"Ошибка: {str(e)[:50]}")
-            return {"ai_probability": 0, "flags": [], "summary": str(e)[:50]}
+            import traceback
 
+            print("\n=== FULL ERROR ===")
+            traceback.print_exc()
+            print("==================\n")
+
+            return {
+                "ai_probability": 0,
+                "flags": [],
+                "summary": str(e)
+            }
     def analyze_email_blocks(self, email_html, model=Config.DEFAULT_MODEL):
         blocks = self.split_html_into_blocks(email_html)
         results = []
 
         for block in blocks:
             block_result = self.analyze_block(block['content'], model)
+
+            ai_probability = float(block_result.get('ai_probability', 0))
+            flags = block_result.get('flags', [])
+
+            # Нормализуем вероятность LLM: 0-100 -> 0.0-1.0
+            llm_probability = max(0.0, min(100.0, ai_probability)) / 100.0
+
+            # Преобразуем флаги LLM в бинарные признаки для engine.py
+            normalized_flags = {str(flag).upper() for flag in flags}
+
+            chunk_data = {
+                "llm_probability": llm_probability,
+                "template_variable": "TEMPLATE_VARIABLE" in normalized_flags,
+                "repeating_pattern": "REPEATING_PATTERN" in normalized_flags,
+                "suspicious_comments": "SUSPICIOUS_COMMENT" in normalized_flags,
+                "deep_nesting": "TOO_DEEP_NESTING" in normalized_flags,
+                "duplicated_styles": "DUPLICATE_STYLES" in normalized_flags,
+                "empty_cell": "EMPTY_CELL" in normalized_flags
+            }
+
+            # Финальная multi-signal оценка
+            engine_result = analyze_chunk_vector(chunk_data)
+
             results.append({
                 'block_type': block['type'],
                 'position': block['position'],
-                'ai_score': block_result.get('ai_probability', 0),
-                'flags': block_result.get('flags', []),
+
+                # Исходный результат LLM
+                'llm_probability': ai_probability,
+
+                # Финальный score после объединения сигналов
+                'ai_score': round(engine_result['AI_Score'] * 100, 1),
+
+                # Решение engine
+                'verdict': engine_result['Verdict'],
+                'confidence': engine_result['Confidence'],
+                'explanation': engine_result['Explanation'],
+
+                # Сохраняем исходные сигналы
+                'flags': flags,
                 'summary': block_result.get('summary', '')
             })
 
+        # Финальный score всего письма
         global_score = self.calculate_global_score(results)
+
         global_flags = self.extract_global_flags(results)
-        high_risk = [b for b in results if b['ai_score'] > 70]
+
+        high_risk = [
+            b for b in results
+            if b['ai_score'] > 70
+        ]
+
+        # Итоговый вердикт письма на основании global score
+        if global_score >= 70:
+            global_verdict = "Сгенерировано ИИ (AI-Generated)"
+        elif global_score >= 40:
+            global_verdict = "Смешанный текст (AI-Assisted / Редактировано)"
+        else:
+            global_verdict = "Написано человеком (Human-Written)"
 
         return {
             'blocks': results,
             'global_ai_score': global_score,
+            'global_verdict': global_verdict,
             'global_flags': global_flags,
             'high_risk_blocks': high_risk
         }
-
     def calculate_global_score(self, block_results):
         if not block_results:
             return 0
