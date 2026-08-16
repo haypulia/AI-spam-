@@ -19,5 +19,5 @@ class Config:
     # параметры модели
     TEMPERATURE = 0.2
     TOP_P = 0.8
-    MAX_HTML_LENGTH = 8000
-    REQUEST_TIMEOUT = 120
+    MAX_HTML_LENGTH = 30000
+    REQUEST_TIMEOUT = 180
