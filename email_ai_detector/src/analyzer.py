@@ -2,12 +2,12 @@ import json
 import os
 import re
 import glob
+import time
 from email import policy
 from email.parser import BytesParser
 import requests
-from src.config import Config
-from src.utils import ensure_dir, get_timestamp, truncate_text
-from src.engine import analyze_chunk_vector
+from config import Config
+from utils import ensure_dir, get_timestamp, truncate_text
 
 
 class EmailAIAnalyzer:
@@ -70,9 +70,9 @@ class EmailAIAnalyzer:
             return None
 
     def split_html_into_blocks(self, html):
-        if len(html) > 10000:
-            html = html[:10000] + "..."
-            print(f" HTML обрезан до 10000 символов")
+        if len(html) > 25000:
+            html = html[:25000] + "..."
+            print(f" HTML обрезан до 25000 символов")
 
         blocks = []
 
@@ -114,18 +114,23 @@ class EmailAIAnalyzer:
 
     def analyze_block(self, block_html, model=Config.DEFAULT_MODEL):
         clean_html = block_html.encode('utf-8', errors='ignore').decode('utf-8')
-        if len(clean_html) > 2000:
-            clean_html = clean_html[:2000] + "..."
+        if len(clean_html) > 10000:
+            clean_html = clean_html[:10000] + "..."
 
         prompt = f"""Analyze this HTML fragment for AI-generated patterns. 
     Return ONLY JSON.
 
-    Flags to detect:
+    Flags to detect (check ALL of them):
     - TOO_DEEP_NESTING (nested tables > 5 levels)
-    - EMPTY_CELL (empty table cells)
-    - SUSPICIOUS_COMMENT (<!-- Generated -->)
-    - TEMPLATE_VARIABLE ({{name}})
-    - DUPLICATE_STYLES (repeated inline styles)
+    - EMPTY_CELL (empty table cells with &nbsp;)
+    - DUPLICATE_STYLES (repeated inline styles in many elements)
+    - SUSPICIOUS_COMMENT (<!-- Generated -->, <!-- Template -->, etc.)
+    - TEMPLATE_VARIABLE ({{{{name}}}}, {{{{email}}}}, {{{{variable}}}})
+    - REPETITIVE_PATTERN (same block repeated 3+ times)
+    - INLINE_STYLE_OVERUSE (more than 3 inline styles per element)
+    - SUSPICIOUS_LINK (links with redirects, unusual domains)
+    - MISSING_ALT (images without alt text)
+    - STRUCTURAL_REDUNDANCY (unnecessary nested divs or tables)
 
     HTML:
     {clean_html}
@@ -136,7 +141,7 @@ class EmailAIAnalyzer:
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are an HTML security expert."},
+                {"role": "system", "content": "You are an HTML security expert. Check ALL flags."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.1,
@@ -144,7 +149,7 @@ class EmailAIAnalyzer:
         }
 
         try:
-            print(f"  → Анализ блока ({len(clean_html)} символов)...")
+            print(f"    → Анализ блока ({len(clean_html)} символов)...")
 
             response = requests.post(
                 self.base_url,
@@ -157,14 +162,10 @@ class EmailAIAnalyzer:
                 result = response.json()
                 if "choices" in result:
                     content = result["choices"][0]["message"]["content"]
-                    
-                    print("\n===== LLM RAW RESPONSE =====")
-                    print(content)
-                    print("============================\n")
-
                     json_match = re.search(r'\{.*\}', content, re.DOTALL)
                     if json_match:
                         parsed = json.loads(json_match.group())
+                        print(f"AI: {parsed.get('ai_probability', 0)}%")
                         return {
                             "ai_probability": parsed.get("ai_probability", 0),
                             "flags": parsed.get("flags", []),
@@ -176,91 +177,42 @@ class EmailAIAnalyzer:
             return {"ai_probability": 0, "flags": [], "summary": f"HTTP {response.status_code}"}
 
         except Exception as e:
-            import traceback
+            print(f"Ошибка: {str(e)[:100]}")
+            return {"ai_probability": 0, "flags": [], "summary": str(e)[:50]}
 
-            print("\n=== FULL ERROR ===")
-            traceback.print_exc()
-            print("==================\n")
-
-            return {
-                "ai_probability": 0,
-                "flags": [],
-                "summary": str(e)
-            }
     def analyze_email_blocks(self, email_html, model=Config.DEFAULT_MODEL):
         blocks = self.split_html_into_blocks(email_html)
         results = []
 
-        for block in blocks:
+        total_blocks = len(blocks)
+
+        for idx, block in enumerate(blocks):
+            print(f"  → Анализ блока {idx + 1}/{total_blocks} ({len(block['content'])} символов)...")
+
             block_result = self.analyze_block(block['content'], model)
-
-            ai_probability = float(block_result.get('ai_probability', 0))
-            flags = block_result.get('flags', [])
-
-            # Нормализуем вероятность LLM: 0-100 -> 0.0-1.0
-            llm_probability = max(0.0, min(100.0, ai_probability)) / 100.0
-
-            # Преобразуем флаги LLM в бинарные признаки для engine.py
-            normalized_flags = {str(flag).upper() for flag in flags}
-
-            chunk_data = {
-                "llm_probability": llm_probability,
-                "template_variable": "TEMPLATE_VARIABLE" in normalized_flags,
-                "repeating_pattern": "REPEATING_PATTERN" in normalized_flags,
-                "suspicious_comments": "SUSPICIOUS_COMMENT" in normalized_flags,
-                "deep_nesting": "TOO_DEEP_NESTING" in normalized_flags,
-                "duplicated_styles": "DUPLICATE_STYLES" in normalized_flags,
-                "empty_cell": "EMPTY_CELL" in normalized_flags
-            }
-
-            # Финальная multi-signal оценка
-            engine_result = analyze_chunk_vector(chunk_data)
-
             results.append({
                 'block_type': block['type'],
                 'position': block['position'],
-
-                # Исходный результат LLM
-                'llm_probability': ai_probability,
-
-                # Финальный score после объединения сигналов
-                'ai_score': round(engine_result['AI_Score'] * 100, 1),
-
-                # Решение engine
-                'verdict': engine_result['Verdict'],
-                'confidence': engine_result['Confidence'],
-                'explanation': engine_result['Explanation'],
-
-                # Сохраняем исходные сигналы
-                'flags': flags,
+                'ai_score': block_result.get('ai_probability', 0),
+                'flags': block_result.get('flags', []),
                 'summary': block_result.get('summary', '')
             })
 
-        # Финальный score всего письма
-        global_score = self.calculate_global_score(results)
+            if idx < total_blocks - 1:
+                time.sleep(2)
 
+        global_score = self.calculate_global_score(results)
         global_flags = self.extract_global_flags(results)
 
-        high_risk = [
-            b for b in results
-            if b['ai_score'] > 70
-        ]
-
-        # Итоговый вердикт письма на основании global score
-        if global_score >= 70:
-            global_verdict = "Сгенерировано ИИ (AI-Generated)"
-        elif global_score >= 40:
-            global_verdict = "Смешанный текст (AI-Assisted / Редактировано)"
-        else:
-            global_verdict = "Написано человеком (Human-Written)"
+        high_risk = [b for b in results if b['ai_score'] > 50]
 
         return {
             'blocks': results,
             'global_ai_score': global_score,
-            'global_verdict': global_verdict,
             'global_flags': global_flags,
             'high_risk_blocks': high_risk
         }
+
     def calculate_global_score(self, block_results):
         if not block_results:
             return 0
