@@ -1,3 +1,102 @@
+def analyze_email_vector(
+    html_score,
+    ocr_score=0.0,
+    has_ocr=False,
+    html_weight=0.50,
+    ocr_weight=0.50
+):
+    """
+    Объединяет AI-generation score HTML и OCR
+    в единый score письма.
+
+    Если OCR-текст присутствует, но HTML содержит
+    мало полезного содержимого, OCR получает больший вес.
+
+    Все score внутри функции: 0.0 .. 1.0.
+    """
+
+    try:
+        html_score = float(html_score)
+    except (TypeError, ValueError):
+        html_score = 0.0
+
+    try:
+        ocr_score = float(ocr_score)
+    except (TypeError, ValueError):
+        ocr_score = 0.0
+
+    # Поддерживаем 0..1 и 0..100
+    if html_score > 1:
+        html_score /= 100
+
+    if ocr_score > 1:
+        ocr_score /= 100
+
+    html_score = max(0.0, min(1.0, html_score))
+
+    ocr_score = max(0.0, min(1.0, ocr_score))
+
+    # Веса:
+
+    if not has_ocr:
+        # Нет OCR → полностью используем HTML
+        html_weight = 1.0
+        ocr_weight = 0.0
+
+    elif html_score < 0.30:
+        # если html как такового нет, то меняем распределение весов
+        # OCR важнее HTML.
+        html_weight = 0.30
+        ocr_weight = 0.70
+
+    else:
+        # если есть OCR и HTML, то +- равеы данные
+        html_weight = 0.50
+        ocr_weight = 0.50
+
+    # Итоговый score
+
+    final_score = (html_score * html_weight + ocr_score * ocr_weight)
+
+    final_score = max(0.0, min(1.0, final_score))
+
+    # Verdict
+
+    if final_score >= 0.60: verdict = "Сгенерировано ИИ (AI-Generated)"
+
+    elif final_score >= 0.30: verdict = "Смешанный текст (AI-Assisted / Редактировано)"
+
+    else: verdict = "Написано человеком (Human-Written)"
+
+    return {
+        "AI_Score": round(final_score, 3),
+
+        "AI_Score_Percent": round(final_score * 100, 1),
+
+        "Verdict": verdict,
+
+        "Signals": {
+            "html_score": round(html_score, 3),
+
+            "ocr_score": round(ocr_score, 3),
+
+            "html_weight": html_weight,
+
+            "ocr_weight": ocr_weight,
+
+            "has_ocr": has_ocr
+        },
+
+        "Explanation": (
+            f"Индекс AI-генерации: "
+            f"{round(final_score * 100, 1)}/100. "
+            f"HTML: {round(html_score * 100, 1)}/100. "
+            f"OCR: {round(ocr_score * 100, 1)}/100. "
+            f"Веса: HTML {html_weight:.0%}, "
+            f"OCR {ocr_weight:.0%}."
+        )
+    }
+
 def analyze_chunk_vector(chunk_data, weights=None):
     
     # 1. Веса признаков (сумма = 1.0). Подстроено под флаги твоей команды.
@@ -11,6 +110,12 @@ def analyze_chunk_vector(chunk_data, weights=None):
             "duplicated_styles": 0.05,   # Дублирование стилей
             "empty_cell": 0.10           # Пустая ячейка (ошибка генерации таблиц)
         }
+
+    llm_score = float(chunk_data.get("llm_probability", 0.0))
+
+    if llm_score > 1: llm_score /= 100
+
+    llm_score = max(0.0, min(1.0, llm_score))
 
     # 2. Формируем вектор признаков x (все значения от 0.0 до 1.0)
     x = {
@@ -67,7 +172,9 @@ def analyze_chunk_vector(chunk_data, weights=None):
 
     return {
         "AI_Score": round(ai_score, 3),
+        "AI_Score_Percent": round(ai_score * 100, 1),
         "Verdict": verdict,
         "Confidence": f"{confidence_percentage}%",
-        "Explanation": explanation_str
+        "Explanation": explanation_str,
+        "Signals": {key: round(value, 3) for key, value in x.items()}
     }
