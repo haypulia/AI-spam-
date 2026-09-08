@@ -1,0 +1,262 @@
+[
+  {
+    "file": "05a1eb51bebd2972ddc5554181e66d9f9df53221.eml",
+    "email": {
+      "subject": "Father's Day Gift Shopping Made Simple ,",
+      "sender": "Father's Day Deals <support@zonemarts.us>"
+    },
+    "analysis": {
+      "blocks": [
+        {
+          "block_type": "table",
+          "position": "table_0",
+          "ai_score": 25,
+          "flags": [
+            "EMPTY_CELL",
+            "INLINE_STYLE_OVERUSE"
+          ],
+          "summary": "The HTML fragment contains an empty table cell with &nbsp; and multiple inline styles on the table element, but no other significant AI-generated patterns detected."
+        },
+        {
+          "block_type": "table",
+          "position": "table_1",
+          "ai_score": 75,
+          "flags": [
+            "TOO_DEEP_NESTING",
+            "EMPTY_CELL",
+            "DUPLICATE_STYLES",
+            "SUSPICIOUS_COMMENT",
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML uses deeply nested tables (6+ levels), empty cells with &nbsp;, repeated inline styles across multiple tables, a suspicious comment, repetitive table structures, and excessive inline styling, indicating AI-generated or template-based code."
+        },
+        {
+          "block_type": "table",
+          "position": "table_2",
+          "ai_score": 15,
+          "flags": [
+            "MISSING_ALT",
+            "INLINE_STYLE_OVERUSE"
+          ],
+          "summary": "The HTML is a typical email template with nested tables and inline styles, but lacks alt text on an image and has multiple inline styles on a single element."
+        },
+        {
+          "block_type": "table",
+          "position": "table_3",
+          "ai_score": 85,
+          "flags": [
+            "TOO_DEEP_NESTING",
+            "EMPTY_CELL",
+            "DUPLICATE_STYLES",
+            "SUSPICIOUS_COMMENT",
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML shows deep nesting of tables (6+ levels), multiple empty cells with &nbsp;, repeated inline styles across many elements, suspicious comments indicating template/generated content, repetitive block patterns (product sections), excessive inline styles per element, and unnecessary nested divs/tables. These patterns are typical of AI-generated or template-based email HTML."
+        }
+      ],
+      "global_ai_score": 50,
+      "global_flags": [
+        "EMPTY_CELL",
+        "INLINE_STYLE_OVERUSE",
+        "TOO_DEEP_NESTING",
+        "DUPLICATE_STYLES",
+        "SUSPICIOUS_COMMENT",
+        "REPETITIVE_PATTERN",
+        "STRUCTURAL_REDUNDANCY",
+        "MISSING_ALT"
+      ],
+      "high_risk_blocks": [
+        {
+          "block_type": "table",
+          "position": "table_1",
+          "ai_score": 75,
+          "flags": [
+            "TOO_DEEP_NESTING",
+            "EMPTY_CELL",
+            "DUPLICATE_STYLES",
+            "SUSPICIOUS_COMMENT",
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML uses deeply nested tables (6+ levels), empty cells with &nbsp;, repeated inline styles across multiple tables, a suspicious comment, repetitive table structures, and excessive inline styling, indicating AI-generated or template-based code."
+        },
+        {
+          "block_type": "table",
+          "position": "table_3",
+          "ai_score": 85,
+          "flags": [
+            "TOO_DEEP_NESTING",
+            "EMPTY_CELL",
+            "DUPLICATE_STYLES",
+            "SUSPICIOUS_COMMENT",
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML shows deep nesting of tables (6+ levels), multiple empty cells with &nbsp;, repeated inline styles across many elements, suspicious comments indicating template/generated content, repetitive block patterns (product sections), excessive inline styles per element, and unnecessary nested divs/tables. These patterns are typical of AI-generated or template-based email HTML."
+        }
+      ]
+    }
+  },
+  {
+    "file": "0a6a0276798fe52923bac8ba1c01765447dc79e4.eml",
+    "email": {
+      "subject": "Ledger Sync (Johnathan Batyrov) From Support-Team",
+      "sender": "Johnathan Batyrov <HYSTAXFIRM@GMAIL.COM>"
+    },
+    "analysis": {
+      "blocks": [
+        {
+          "block_type": "table",
+          "position": "table_0",
+          "ai_score": 45,
+          "flags": [
+            "SUSPICIOUS_LINK",
+            "MISSING_ALT"
+          ],
+          "summary": "The HTML is a typical email template with nested tables, inline styles, and a suspicious link to eslimdiet.com. No images are present, so MISSING_ALT is flagged as a precaution. The structure is standard for email marketing, but the link domain is unusual."
+        },
+        {
+          "block_type": "table",
+          "position": "table_1",
+          "ai_score": 25,
+          "flags": [
+            "EMPTY_CELL",
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML uses nested tables for layout, which is common in email templates but can be AI-generated. There is an empty cell with &nbsp; (not shown in the fragment but implied by the structure), excessive inline styles on multiple elements, and unnecessary nested table structures. No suspicious comments, template variables, repetitive blocks, or suspicious links are present. The image alt text is not applicable here as no images are present."
+        },
+        {
+          "block_type": "table",
+          "position": "table_2",
+          "ai_score": 45,
+          "flags": [
+            "EMPTY_CELL",
+            "INLINE_STYLE_OVERUSE",
+            "SUSPICIOUS_COMMENT"
+          ],
+          "summary": "The HTML fragment contains an empty cell with &nbsp;, multiple inline styles on a single element, and a suspicious comment indicating AI generation."
+        },
+        {
+          "block_type": "table",
+          "position": "table_3",
+          "ai_score": 15,
+          "flags": [
+            "INLINE_STYLE_OVERUSE",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML uses a table for layout with multiple inline styles per element, and the table structure is redundant for simple text alignment. However, it lacks deep nesting, empty cells, suspicious comments, template variables, repetitive patterns, suspicious links, or missing alt text."
+        },
+        {
+          "block_type": "table",
+          "position": "table_4",
+          "ai_score": 72,
+          "flags": [
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "MISSING_ALT",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML shows repetitive table rows with identical inline styles, excessive inline styling per element, no images with alt attributes, and unnecessary nested tables, indicating a template-like AI-generated structure."
+        },
+        {
+          "block_type": "table",
+          "position": "table_5",
+          "ai_score": 45,
+          "flags": [
+            "SUSPICIOUS_LINK",
+            "MISSING_ALT"
+          ],
+          "summary": "The HTML contains a suspicious link to a non-standard domain (eslimdiet.com) with a redirect-like path, and while there are no images, the link text is generic and action-oriented, typical of phishing templates. No deep nesting, empty cells, duplicate styles, suspicious comments, template variables, repetitive patterns, inline style overuse, or structural redundancy detected."
+        },
+        {
+          "block_type": "table",
+          "position": "table_6",
+          "ai_score": 15,
+          "flags": [
+            "EMPTY_CELL",
+            "INLINE_STYLE_OVERUSE"
+          ],
+          "summary": "The HTML fragment is a simple table with a single row and cell used as a horizontal divider. It contains an empty cell with &nbsp; and multiple inline styles on the td element, but no other suspicious patterns."
+        },
+        {
+          "block_type": "table",
+          "position": "table_7",
+          "ai_score": 45,
+          "flags": [
+            "SUSPICIOUS_LINK",
+            "MISSING_ALT"
+          ],
+          "summary": "The HTML contains a link to a suspicious domain (eslimdiet.com) with a redirect-like path, and while there are no images, the presence of a suspicious link and typical email footer structure suggests possible AI generation."
+        }
+      ],
+      "global_ai_score": 38,
+      "global_flags": [
+        "SUSPICIOUS_LINK",
+        "MISSING_ALT",
+        "EMPTY_CELL",
+        "INLINE_STYLE_OVERUSE",
+        "STRUCTURAL_REDUNDANCY",
+        "SUSPICIOUS_COMMENT",
+        "REPETITIVE_PATTERN"
+      ],
+      "high_risk_blocks": [
+        {
+          "block_type": "table",
+          "position": "table_4",
+          "ai_score": 72,
+          "flags": [
+            "REPETITIVE_PATTERN",
+            "INLINE_STYLE_OVERUSE",
+            "MISSING_ALT",
+            "STRUCTURAL_REDUNDANCY"
+          ],
+          "summary": "The HTML shows repetitive table rows with identical inline styles, excessive inline styling per element, no images with alt attributes, and unnecessary nested tables, indicating a template-like AI-generated structure."
+        }
+      ]
+    }
+  },
+  {
+    "file": "0b5d52c6f7164d07615171cfc71df76451a389a8.eml",
+    "email": {
+      "subject": "Your SESAMm ESG controversy profile — access and review",
+      "sender": "SESAMm Regulatory Team <sesamm@regulatory-notice-esgr.eu>"
+    },
+    "analysis": {
+      "blocks": [
+        {
+          "block_type": "table",
+          "position": "table_0",
+          "ai_score": 45,
+          "flags": [
+            "SUSPICIOUS_LINK",
+            "MISSING_ALT"
+          ],
+          "summary": "The HTML is a well-structured email template with a clear layout, but it contains a suspicious link with a long JWT token and an unusual domain (dashboards.textreveal.com), and images are missing alt text. The nesting depth is moderate, and while there are some inline styles, they are not excessive. No obvious AI-generated patterns like template variables or repetitive blocks are present."
+        },
+        {
+          "block_type": "list",
+          "position": "list_0",
+          "ai_score": 15,
+          "flags": [
+            "INLINE_STYLE_OVERUSE"
+          ],
+          "summary": "The HTML fragment is a simple list with inline styles on each list item. While it uses inline styles, the pattern is consistent and not excessive. There are no deep nesting, empty cells, duplicate styles, suspicious comments, template variables, repetitive blocks, suspicious links, missing alt text, or structural redundancy. The inline styles are used for spacing, which is a common practice in email templates. The low AI probability is due to the straightforward and functional nature of the code."
+        }
+      ],
+      "global_ai_score": 30,
+      "global_flags": [
+        "SUSPICIOUS_LINK",
+        "MISSING_ALT",
+        "INLINE_STYLE_OVERUSE"
+      ],
+      "high_risk_blocks": []
+    }
+  }
+]

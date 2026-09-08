@@ -1,0 +1,77 @@
+{
+  "source": "data/processed/case_samples_analysis.json",
+  "total": 1941,
+  "groups": {
+    "root": {
+      "count": 1,
+      "mean_ai_score": 0.9996,
+      "median_ai_score": 0.9996,
+      "min_ai_score": 0.9996,
+      "max_ai_score": 0.9996,
+      "verdicts": {
+        "Сгенерировано ИИ (AI-Generated)": 1
+      },
+      "reported_zones": {
+        "body": 1,
+        "closer": 1
+      }
+    },
+    "samples_gray": {
+      "count": 29,
+      "mean_ai_score": 0.7767689655172412,
+      "median_ai_score": 0.99,
+      "min_ai_score": 0.0004,
+      "max_ai_score": 1.0,
+      "verdicts": {
+        "Сгенерировано ИИ (AI-Generated)": 23,
+        "Написано человеком (Human-Written)": 6
+      },
+      "reported_zones": {
+        "opener": 18,
+        "body": 15,
+        "subject": 7,
+        "cta": 4,
+        "closer": 4,
+        "html_template": 1
+      }
+    },
+    "samples_prompt": {
+      "count": 1850,
+      "mean_ai_score": 0.9862972432432477,
+      "median_ai_score": 0.9995,
+      "min_ai_score": 0.7716,
+      "max_ai_score": 1.0,
+      "verdicts": {
+        "Сгенерировано ИИ (AI-Generated)": 1850
+      },
+      "reported_zones": {
+        "body": 1349,
+        "closer": 1338,
+        "opener": 1049,
+        "subject": 198,
+        "cta": 39,
+        "html_template": 1
+      }
+    },
+    "samples_spam": {
+      "count": 61,
+      "mean_ai_score": 0.31653278688524594,
+      "median_ai_score": 0.0476,
+      "min_ai_score": 0.0,
+      "max_ai_score": 1.0,
+      "verdicts": {
+        "Написано человеком (Human-Written)": 38,
+        "Смешанный текст (AI-Assisted)": 6,
+        "Сгенерировано ИИ (AI-Generated)": 17
+      },
+      "reported_zones": {
+        "opener": 48,
+        "body": 37,
+        "closer": 27,
+        "html_template": 16,
+        "subject": 8,
+        "cta": 4
+      }
+    }
+  }
+}

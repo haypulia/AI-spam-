@@ -1,0 +1,28 @@
+services:
+  detector:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runtime
+    image: email-ai-detector:runtime
+    env_file:
+      - ../.env
+    volumes:
+      - ../data/raw:/app/data/raw
+      - ../data/processed:/app/data/processed
+      - ../models:/app/models
+    command: ["analyze", "--input", "data/raw/drweb", "--scorer", "heuristic"]
+
+  metrics:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: metrics
+    image: email-ai-detector:metrics
+    env_file:
+      - ../.env
+    volumes:
+      - ../reports:/app/reports
+      - ../models:/app/models
+      - ../data/interim:/app/data/interim
+    command: ["evaluate", "--split", "test", "--scorer", "heuristic"]
