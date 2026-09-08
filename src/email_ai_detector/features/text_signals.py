@@ -6,12 +6,17 @@ from .lexicons import (
     CALL_TO_ACTION,
     CLOSERS,
     CONNECTIVES,
+    FUNCTION_WORDS,
     GENERIC_GREETINGS,
+    IMPERATIVE_OPENINGS,
     MARKETING_PHRASES,
     OPENERS,
     TYPO_TOKENS,
     URGENCY,
 )
+
+FUNCTION_WORD_SET = frozenset(FUNCTION_WORDS)
+IMPERATIVE_SET = frozenset(IMPERATIVE_OPENINGS)
 
 SENTENCE_BOUNDARY = re.compile(r"[^\n.!?]+[.!?]*", re.UNICODE)
 WORD_PATTERN = re.compile(r"[\w'’-]+", re.UNICODE)
@@ -21,6 +26,13 @@ EMOJI_PATTERN = re.compile(
     re.UNICODE,
 )
 REPEATED_PUNCT = re.compile(r"([.,!?])\1+")
+IDENTIFIER_PATTERN = re.compile(r"\b[A-ZА-Я]{2,}[-_ ]?\d{3,}\b|\b\d{4,}\b", re.UNICODE)
+DATE_PATTERN = re.compile(
+    r"\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b|\b\d{1,2}\s+(?:янв|фев|мар|апр|мая|июн|июл|авг|сен|окт|ноя|дек|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
+    re.IGNORECASE,
+)
+CURRENCY_PATTERN = re.compile(r"[$€₽£]\s?\d|\b\d[\d\s.,]*\s?(?:руб|₽|usd|eur|долл)", re.IGNORECASE)
+CLAUSE_PATTERN = re.compile(r"[,;:]|\b(?:and|or|but|that|which|и|или|но|что|который|которая)\b", re.IGNORECASE)
 DOUBLE_SPACE = re.compile(r"[ ]{2,}")
 SMART_QUOTES = re.compile(r"[«»“”„‟‘’]")
 DASH_PATTERN = re.compile(r"\s[—–-]\s")
@@ -54,6 +66,14 @@ TEXT_FEATURE_NAMES = (
     "generic_greeting",
     "repeated_bigram_ratio",
     "url_rate",
+    "function_word_ratio",
+    "long_word_ratio",
+    "clause_density",
+    "specificity_rate",
+    "digit_token_ratio",
+    "identifier_rate",
+    "sentence_opening_repetition",
+    "imperative_opening_rate",
 )
 
 
@@ -96,6 +116,17 @@ def _typo_markers(text: str, lowered: str, sentences: Sequence[Tuple[int, int, s
     markers += sum(1 for token in TYPO_TOKENS if token in lowered)
     markers += sum(1 for _, _, sentence in sentences if sentence and sentence[0].islower())
     return markers
+
+
+def _opening_repetition(sentences: Sequence[Tuple[int, int, str]]) -> float:
+    openings = []
+    for _, _, sentence in sentences:
+        tokens = tokenize(sentence)[:2]
+        if tokens:
+            openings.append(tuple(tokens))
+    if len(openings) < 2:
+        return 0.0
+    return 1.0 - len(set(openings)) / len(openings)
 
 
 def extract_text_features(text: str) -> Dict[str, float]:
@@ -149,6 +180,30 @@ def extract_text_features(text: str) -> Dict[str, float]:
         "generic_greeting": 1.0 if _phrase_hits(lowered, GENERIC_GREETINGS) else 0.0,
         "repeated_bigram_ratio": 1.0 - _safe_div(len(unique_bigrams), len(bigrams)) if bigrams else 0.0,
         "url_rate": _safe_div(len(URL_PATTERN.findall(text)), max(1, sentence_count)),
+        "function_word_ratio": _safe_div(
+            sum(1 for token in tokens if token in FUNCTION_WORD_SET), token_count
+        ),
+        "long_word_ratio": _safe_div(sum(1 for token in tokens if len(token) > 7), token_count),
+        "clause_density": _safe_div(len(CLAUSE_PATTERN.findall(text)), max(1, sentence_count)),
+        "specificity_rate": _safe_div(
+            len(IDENTIFIER_PATTERN.findall(text))
+            + len(DATE_PATTERN.findall(text))
+            + len(CURRENCY_PATTERN.findall(text)),
+            max(1, sentence_count),
+        ),
+        "digit_token_ratio": _safe_div(
+            sum(1 for token in tokens if any(char.isdigit() for char in token)), token_count
+        ),
+        "identifier_rate": _safe_div(len(IDENTIFIER_PATTERN.findall(text)), max(1, sentence_count)),
+        "sentence_opening_repetition": _opening_repetition(sentences),
+        "imperative_opening_rate": _safe_div(
+            sum(
+                1
+                for _, _, sentence in sentences
+                if tokenize(sentence)[:1] and tokenize(sentence)[0] in IMPERATIVE_SET
+            ),
+            max(1, sentence_count),
+        ),
     }
     return {name: float(features.get(name, 0.0)) for name in TEXT_FEATURE_NAMES}
 
