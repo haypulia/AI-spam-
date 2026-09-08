@@ -1,16 +1,22 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from .base import Scorer, ScoreResult
+from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, VerdictThresholds
 
 
 class EnsembleScorer(Scorer):
     name = "ensemble"
 
-    def __init__(self, scorers: List[Scorer], weights: Dict[str, float] = None):
+    def __init__(
+        self,
+        scorers: List[Scorer],
+        weights: Dict[str, float] = None,
+        thresholds: Optional[VerdictThresholds] = None,
+    ):
         if not scorers:
             raise ValueError("ensemble requires at least one scorer")
         self.scorers = scorers
         self.weights = weights or {scorer.name: 1.0 / len(scorers) for scorer in scorers}
+        self.thresholds = thresholds or getattr(scorers[0], "thresholds", DEFAULT_THRESHOLDS)
 
     def score_email(
         self,
@@ -49,5 +55,6 @@ class EnsembleScorer(Scorer):
             explanation=" ".join(result.explanation for result in results if result.explanation),
             segments=segments,
             scorer=self.name,
+            thresholds=self.thresholds,
             meta={"components": {result.scorer: round(result.score, 4) for result in results}},
         )

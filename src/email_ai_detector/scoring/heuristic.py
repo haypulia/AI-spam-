@@ -8,7 +8,7 @@ from ..features import (
     extract_features,
     iter_segments,
 )
-from .base import Scorer, ScoreResult, Segment
+from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, Segment, VerdictThresholds
 from .explainer import CategoryExplainer
 from .model import LinearModel
 
@@ -65,11 +65,13 @@ class HeuristicScorer(Scorer):
         segment_model: Optional[LinearModel] = None,
         explainer: Optional[CategoryExplainer] = None,
         category_threshold: float = 0.5,
+        thresholds: Optional[VerdictThresholds] = None,
     ):
         self.model = model
         self.segment_model = segment_model
         self.explainer = explainer
         self.category_threshold = category_threshold
+        self.thresholds = thresholds or DEFAULT_THRESHOLDS
 
     @classmethod
     def from_paths(
@@ -78,6 +80,7 @@ class HeuristicScorer(Scorer):
         segment_model_path: Optional[PathLike] = None,
         explainer_path: Optional[PathLike] = None,
         category_threshold: float = 0.5,
+        thresholds: Optional[VerdictThresholds] = None,
     ) -> "HeuristicScorer":
         model = LinearModel.load(model_path) if model_path and Path(model_path).exists() else None
         segment_model = (
@@ -95,6 +98,7 @@ class HeuristicScorer(Scorer):
             segment_model=segment_model,
             explainer=explainer,
             category_threshold=category_threshold,
+            thresholds=thresholds,
         )
 
     @classmethod
@@ -104,6 +108,9 @@ class HeuristicScorer(Scorer):
             segment_model_path=settings.models_dir / "segment_model.json",
             explainer_path=settings.models_dir / "category_models.json",
             category_threshold=category_threshold,
+            thresholds=VerdictThresholds(
+                mixed=settings.verdict_mixed_threshold, ai=settings.verdict_ai_threshold
+            ),
         )
 
     def _document_score(self, features) -> float:
@@ -199,6 +206,7 @@ class HeuristicScorer(Scorer):
             explanation=self._explanation(score, categories, features),
             segments=segments,
             scorer=self.name,
+            thresholds=self.thresholds,
             meta={
                 "model": "linear" if self.model is not None else "rule_based",
                 "segment_model": "linear" if self.segment_model is not None else "rule_based",

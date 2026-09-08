@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 
 from ..features import extract_features, normalize_category
 from ..features.html_signals import strip_tags
-from .base import Scorer, ScoreResult
+from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, VerdictThresholds
 from .engine import analyze_chunk_vector, analyze_email_vector
 from .prompts import (
     HTML_SYSTEM_PROMPT,
@@ -122,6 +122,7 @@ class LLMScorer(Scorer):
         max_html_length: int = 25000,
         cache_dir: Optional[PathLike] = None,
         max_blocks: int = 6,
+        thresholds: Optional[VerdictThresholds] = None,
     ):
         self.api_key = api_key
         self.base_url = base_url
@@ -133,6 +134,7 @@ class LLMScorer(Scorer):
         self.max_block_length = max_block_length
         self.max_html_length = max_html_length
         self.max_blocks = max_blocks
+        self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.cache = ResponseCache(cache_dir) if cache_dir else None
 
     @classmethod
@@ -150,6 +152,9 @@ class LLMScorer(Scorer):
             max_block_length=settings.max_block_length,
             max_html_length=settings.max_html_length,
             cache_dir=settings.cache_dir,
+            thresholds=VerdictThresholds(
+                mixed=settings.verdict_mixed_threshold, ai=settings.verdict_ai_threshold
+            ),
         )
 
     def _request(self, system_prompt: str, user_prompt: str) -> dict:
@@ -318,5 +323,6 @@ class LLMScorer(Scorer):
             },
             explanation=" ".join(part for part in explanation_parts if part),
             scorer=self.name,
+            thresholds=self.thresholds,
             meta={"model": self.model, "blocks": block_results, "flags": flags},
         )

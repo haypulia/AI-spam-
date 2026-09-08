@@ -10,12 +10,34 @@ MIXED_THRESHOLD = 0.30
 AI_THRESHOLD = 0.60
 
 
-def verdict_for_score(score: float) -> str:
-    if score >= AI_THRESHOLD:
-        return AI_VERDICT
-    if score >= MIXED_THRESHOLD:
-        return MIXED_VERDICT
-    return HUMAN_VERDICT
+@dataclass(frozen=True)
+class VerdictThresholds:
+    mixed: float = MIXED_THRESHOLD
+    ai: float = AI_THRESHOLD
+
+    def __post_init__(self):
+        if not 0.0 <= self.mixed <= self.ai <= 1.0:
+            raise ValueError(
+                "пороги вердикта должны удовлетворять 0 <= mixed <= ai <= 1, получено mixed=%s, ai=%s"
+                % (self.mixed, self.ai)
+            )
+
+    def verdict(self, score: float) -> str:
+        if score >= self.ai:
+            return AI_VERDICT
+        if score >= self.mixed:
+            return MIXED_VERDICT
+        return HUMAN_VERDICT
+
+    def to_dict(self) -> Dict[str, float]:
+        return {"mixed": self.mixed, "ai": self.ai}
+
+
+DEFAULT_THRESHOLDS = VerdictThresholds()
+
+
+def verdict_for_score(score: float, thresholds: Optional[VerdictThresholds] = None) -> str:
+    return (thresholds or DEFAULT_THRESHOLDS).verdict(score)
 
 
 @dataclass
@@ -47,11 +69,12 @@ class ScoreResult:
     segments: List[Segment] = field(default_factory=list)
     scorer: str = ""
     meta: Dict[str, object] = field(default_factory=dict)
+    thresholds: VerdictThresholds = DEFAULT_THRESHOLDS
 
     def __post_init__(self):
         self.score = max(0.0, min(1.0, float(self.score)))
         if not self.verdict:
-            self.verdict = verdict_for_score(self.score)
+            self.verdict = verdict_for_score(self.score, self.thresholds)
 
     @property
     def score_percent(self) -> float:
@@ -66,6 +89,7 @@ class ScoreResult:
             "ai_score": round(self.score, 4),
             "ai_score_percent": self.score_percent,
             "verdict": self.verdict,
+            "verdict_thresholds": self.thresholds.to_dict(),
             "confidence": round(self.confidence, 4),
             "categories": {name: round(value, 4) for name, value in self.categories.items()},
             "reported_categories": self.reported_categories(threshold),
@@ -78,6 +102,7 @@ class ScoreResult:
 
 class Scorer(ABC):
     name = "base"
+    thresholds: VerdictThresholds = DEFAULT_THRESHOLDS
 
     @abstractmethod
     def score_email(
