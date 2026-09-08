@@ -1,6 +1,7 @@
 from typing import Dict, List, Sequence, Tuple
 
 from ..features import FEATURE_NAMES, SEGMENT_FEATURE_NAMES, extract_features, iter_segments
+from ..features.perturbations import DEFAULT_SEEDS, augmented_records
 from .explainer import CategoryExplainer, train_category_models
 from .model import LinearModel, train_linear_model
 
@@ -61,16 +62,38 @@ def build_segment_dataset(records: Sequence) -> Tuple[List[List[float]], List[in
     return matrix, labels
 
 
-def train_document_model(records: Sequence, metadata: Dict[str, object] = None) -> LinearModel:
-    matrix, labels = build_document_dataset(records)
-    payload = {"kind": "document", "samples": len(labels), "positives": sum(labels)}
+def train_document_model(
+    records: Sequence,
+    metadata: Dict[str, object] = None,
+    augmentation_seeds: Sequence[int] = DEFAULT_SEEDS,
+) -> LinearModel:
+    expanded = augmented_records(records, augmentation_seeds) if augmentation_seeds else list(records)
+    matrix, labels = build_document_dataset(expanded)
+    payload = {
+        "kind": "document",
+        "samples": len(labels),
+        "positives": sum(labels),
+        "source_emails": len(records),
+        "augmentation_seeds": list(augmentation_seeds or ()),
+    }
     payload.update(metadata or {})
     return train_linear_model(matrix, labels, FEATURE_NAMES, metadata=payload, excluded=VOLUME_FEATURES)
 
 
-def train_segment_model(records: Sequence, metadata: Dict[str, object] = None) -> LinearModel:
-    matrix, labels = build_segment_dataset(records)
-    payload = {"kind": "segment", "samples": len(labels), "positives": sum(labels)}
+def train_segment_model(
+    records: Sequence,
+    metadata: Dict[str, object] = None,
+    augmentation_seeds: Sequence[int] = DEFAULT_SEEDS,
+) -> LinearModel:
+    expanded = augmented_records(records, augmentation_seeds) if augmentation_seeds else list(records)
+    matrix, labels = build_segment_dataset(expanded)
+    payload = {
+        "kind": "segment",
+        "samples": len(labels),
+        "positives": sum(labels),
+        "source_emails": len(records),
+        "augmentation_seeds": list(augmentation_seeds or ()),
+    }
     payload.update(metadata or {})
     return train_linear_model(matrix, labels, SEGMENT_FEATURE_NAMES, metadata=payload, excluded=VOLUME_FEATURES)
 
