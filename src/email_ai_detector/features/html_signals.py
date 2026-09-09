@@ -4,6 +4,7 @@ from html import unescape
 from typing import Dict, List
 
 from .lexicons import SUSPICIOUS_COMMENT_MARKERS, TEMPLATE_PATTERNS
+from .normalize import collapse_all_spaces, drop_invisible
 
 COMMENT_PATTERN = re.compile(r"<!--(.*?)-->", re.DOTALL)
 TAG_PATTERN = re.compile(r"<\s*(/?)\s*([a-zA-Z0-9]+)", re.IGNORECASE)
@@ -15,14 +16,6 @@ TEXT_TAG_PATTERN = re.compile(r"<[^>]+>")
 NON_CONTENT_PATTERN = re.compile(
     r"<(style|script|head)\b[^>]*>.*?</\1\s*>|<(style|script)\b[^>]*>.*",
     re.DOTALL | re.IGNORECASE,
-)
-WHITESPACE_PATTERN = re.compile(r"[\s\u00a0]+")
-INVISIBLE_PATTERN = re.compile(
-    "["
-    "\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5"
-    "\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f"
-    "\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8"
-    "]"
 )
 TEMPLATE_REGEXES = tuple(re.compile(pattern, re.IGNORECASE) for pattern in TEMPLATE_PATTERNS)
 
@@ -47,16 +40,11 @@ HTML_FEATURE_NAMES = (
 )
 
 
-def drop_invisible(text: str) -> str:
-    return INVISIBLE_PATTERN.sub("", text or "")
-
-
 def strip_tags(html: str) -> str:
     cleaned = COMMENT_PATTERN.sub(" ", html or "")
     cleaned = NON_CONTENT_PATTERN.sub(" ", cleaned)
     cleaned = TEXT_TAG_PATTERN.sub(" ", cleaned)
-    cleaned = drop_invisible(unescape(cleaned))
-    return WHITESPACE_PATTERN.sub(" ", cleaned).strip()
+    return collapse_all_spaces(drop_invisible(unescape(cleaned)))
 
 
 def find_template_variables(html: str) -> List[str]:

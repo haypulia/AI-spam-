@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from .html_signals import HTML_FEATURE_NAMES, extract_html_features, html_evidence, strip_tags
 from .lexicons import CLOSERS, OPENERS
+from .normalize import normalize_text
 from .text_signals import (
     REPEATED_PUNCT,
     SUBJECT_FEATURE_NAMES,
@@ -176,6 +177,10 @@ def extract_features(
     html: str = "",
     ocr_text: str = "",
 ) -> EmailFeatures:
+    text = normalize_text(text)
+    subject = normalize_text(subject)
+    ocr_text = normalize_text(ocr_text)
+
     if not text and html:
         text = strip_tags(html)
 
@@ -219,7 +224,8 @@ def extract_segment_features(sentence: str, index: int, total: int) -> Dict[str,
 
 
 def iter_segments(text: str):
-    sentences = split_sentences(text or "")
+    text = normalize_text(text)
+    sentences = split_sentences(text)
     total = len(sentences)
     for index, (start, end, sentence) in enumerate(sentences):
         yield {
