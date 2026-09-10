@@ -14,6 +14,20 @@ from .model import LinearModel
 
 PathLike = Union[str, Path]
 
+OBFUSCATION_LIMITS = {
+    "obfuscation_intraword_invisible": 0.05,
+    "obfuscation_mixed_script_rate": 0.02,
+    "obfuscation_inner_capital_rate": 0.05,
+    "obfuscation_invisible_rate": 0.02,
+}
+
+OBFUSCATION_LABELS = {
+    "obfuscation_intraword_invisible": "невидимые символы внутри слов",
+    "obfuscation_mixed_script_rate": "слова из смешанных алфавитов",
+    "obfuscation_inner_capital_rate": "подмена букв похожими начертаниями",
+    "obfuscation_invisible_rate": "служебные невидимые символы в тексте",
+}
+
 FALLBACK_CATEGORY_WEIGHTS = {
     "body": 0.35,
     "html_template": 0.15,
@@ -145,6 +159,13 @@ class HeuristicScorer(Scorer):
             )
         return segments
 
+    def _obfuscation_notes(self, features) -> List[str]:
+        return [
+            OBFUSCATION_LABELS[name]
+            for name, limit in OBFUSCATION_LIMITS.items()
+            if features.vector.get(name, 0.0) >= limit
+        ]
+
     def _explanation(self, score: float, categories: Dict[str, float], features) -> str:
         parts = ["Итоговый индекс AI-генерации: %s/100." % round(score * 100, 1)]
 
@@ -166,7 +187,11 @@ class HeuristicScorer(Scorer):
             if drivers:
                 parts.append("Ключевые признаки: %s." % ", ".join(drivers))
 
-        if not triggered and score < 0.3:
+        notes = self._obfuscation_notes(features)
+        if notes:
+            parts.append("Признаки маскировки текста: %s." % ", ".join(notes))
+
+        if not triggered and not notes and score < 0.3:
             parts.append("Стилистика и разметка соответствуют письму, написанному человеком.")
 
         return " ".join(parts)
@@ -195,6 +220,9 @@ class HeuristicScorer(Scorer):
                 "html_template_variable",
                 "html_suspicious_comment",
                 "ocr_present",
+                "obfuscation_intraword_invisible",
+                "obfuscation_mixed_script_rate",
+                "obfuscation_inner_capital_rate",
             )
         }
 

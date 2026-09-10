@@ -5,6 +5,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from .html_signals import HTML_FEATURE_NAMES, extract_html_features, html_evidence, strip_tags
 from .lexicons import CLOSERS, OPENERS
 from .normalize import normalize_text
+from .obfuscation import (
+    OBFUSCATION_FEATURE_NAMES,
+    extract_obfuscation_features,
+    obfuscation_evidence,
+)
 from .text_signals import (
     REPEATED_PUNCT,
     SUBJECT_FEATURE_NAMES,
@@ -46,6 +51,7 @@ FEATURE_NAMES: Tuple[str, ...] = (
     + tuple("html_%s" % name for name in HTML_FEATURE_NAMES)
     + EDGE_FEATURE_NAMES
     + OCR_FEATURE_NAMES
+    + OBFUSCATION_FEATURE_NAMES
 )
 
 
@@ -177,6 +183,8 @@ def extract_features(
     html: str = "",
     ocr_text: str = "",
 ) -> EmailFeatures:
+    obfuscation_features = extract_obfuscation_features(text=text, subject=subject, html=html)
+
     text = normalize_text(text)
     subject = normalize_text(subject)
     ocr_text = normalize_text(ocr_text)
@@ -197,11 +205,13 @@ def extract_features(
     vector.update({"html_%s" % name: value for name, value in html_features.items()})
     vector.update(edge_features)
     vector.update(ocr_features)
+    vector.update(obfuscation_features)
 
     categories = _category_scores(subject_features, text_features, html_features, ocr_features, sentences)
 
     evidence = html_evidence(html)
     evidence["sentences"] = [sentence for _, _, sentence in sentences[:10]]
+    evidence.update(obfuscation_evidence(text=text, subject=subject, html=html))
 
     return EmailFeatures(vector=vector, categories=categories, evidence=evidence)
 
