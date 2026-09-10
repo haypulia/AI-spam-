@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from ..features import extract_features, normalize_category
-from ..features.html_signals import strip_tags
+from ..features.html_signals import split_html_into_blocks, strip_tags
 from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, VerdictThresholds
 from .engine import analyze_chunk_vector, analyze_email_vector
 from .prompts import (
@@ -20,13 +20,6 @@ from .prompts import (
 PathLike = Union[str, Path]
 
 JSON_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
-
-TABLE_PATTERN = re.compile(r"(<table[^>]*>.*?</table>)", re.DOTALL | re.IGNORECASE)
-SECTION_PATTERN = re.compile(
-    r"(<div[^>]*class=[\"'](?:section|content|main|header|footer)[^\"']*[\"'][^>]*>.*?</div>)",
-    re.DOTALL | re.IGNORECASE,
-)
-LIST_PATTERN = re.compile(r"(<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>)", re.DOTALL | re.IGNORECASE)
 
 FLAG_TO_CATEGORY = {
     "TEMPLATE_VARIABLE": "html_template",
@@ -76,24 +69,6 @@ class ResponseCache:
     def put(self, key: str, payload: dict) -> None:
         with open(self._path(key), "w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=False)
-
-
-def split_html_into_blocks(html: str, max_length: int = 25000) -> List[dict]:
-    html = html or ""
-    if len(html) > max_length:
-        html = html[:max_length]
-
-    blocks: List[dict] = []
-    for index, table in enumerate(TABLE_PATTERN.findall(html)):
-        blocks.append({"type": "table", "content": table, "position": "table_%d" % index})
-    for index, section in enumerate(SECTION_PATTERN.findall(html)):
-        blocks.append({"type": "div_section", "content": section, "position": "section_%d" % index})
-    for index, item in enumerate(LIST_PATTERN.findall(html)):
-        blocks.append({"type": "list", "content": item, "position": "list_%d" % index})
-
-    if not blocks and html.strip():
-        blocks.append({"type": "text_block", "content": html, "position": "full_text"})
-    return blocks
 
 
 def parse_json_response(content: str) -> Optional[dict]:

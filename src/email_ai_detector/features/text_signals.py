@@ -1,5 +1,4 @@
 import math
-import re
 from typing import Dict, List, Sequence, Tuple
 
 from .lexicons import (
@@ -15,27 +14,23 @@ from .lexicons import (
     URGENCY,
 )
 
+from .patterns import (
+    CLAUSE_PATTERN,
+    CURRENCY_PATTERN,
+    DASH_PATTERN,
+    DATE_PATTERN,
+    DOUBLE_SPACE_PATTERN,
+    EMOJI_PATTERN,
+    IDENTIFIER_PATTERN,
+    REPEATED_PUNCT_PATTERN,
+    SENTENCE_PATTERN,
+    SMART_QUOTES_PATTERN,
+    TEXT_URL_PATTERN,
+    TOKEN_PATTERN,
+)
+
 FUNCTION_WORD_SET = frozenset(FUNCTION_WORDS)
 IMPERATIVE_SET = frozenset(IMPERATIVE_OPENINGS)
-
-SENTENCE_BOUNDARY = re.compile(r"[^\n.!?]+[.!?]*", re.UNICODE)
-WORD_PATTERN = re.compile(r"[\w'’-]+", re.UNICODE)
-URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
-EMOJI_PATTERN = re.compile(
-    "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF]",
-    re.UNICODE,
-)
-REPEATED_PUNCT = re.compile(r"([.,!?])\1+")
-IDENTIFIER_PATTERN = re.compile(r"\b[A-ZА-Я]{2,}[-_ ]?\d{3,}\b|\b\d{4,}\b", re.UNICODE)
-DATE_PATTERN = re.compile(
-    r"\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b|\b\d{1,2}\s+(?:янв|фев|мар|апр|мая|июн|июл|авг|сен|окт|ноя|дек|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
-    re.IGNORECASE,
-)
-CURRENCY_PATTERN = re.compile(r"[$€₽£]\s?\d|\b\d[\d\s.,]*\s?(?:руб|₽|usd|eur|долл)", re.IGNORECASE)
-CLAUSE_PATTERN = re.compile(r"[,;:]|\b(?:and|or|but|that|which|и|или|но|что|который|которая)\b", re.IGNORECASE)
-DOUBLE_SPACE = re.compile(r"[ ]{2,}")
-SMART_QUOTES = re.compile(r"[«»“”„‟‘’]")
-DASH_PATTERN = re.compile(r"\s[—–-]\s")
 
 TEXT_FEATURE_NAMES = (
     "word_count_log",
@@ -79,7 +74,7 @@ TEXT_FEATURE_NAMES = (
 
 def split_sentences(text: str) -> List[Tuple[int, int, str]]:
     spans = []
-    for match in SENTENCE_BOUNDARY.finditer(text or ""):
+    for match in SENTENCE_PATTERN.finditer(text or ""):
         chunk = match.group()
         stripped = chunk.strip()
         if not stripped:
@@ -91,7 +86,7 @@ def split_sentences(text: str) -> List[Tuple[int, int, str]]:
 
 
 def tokenize(text: str) -> List[str]:
-    return WORD_PATTERN.findall((text or "").lower())
+    return TOKEN_PATTERN.findall((text or "").lower())
 
 
 def _phrase_hits(lowered: str, phrases: Sequence[str]) -> int:
@@ -112,7 +107,7 @@ def _std(values: Sequence[float]) -> float:
 
 def _typo_markers(text: str, lowered: str, sentences: Sequence[Tuple[int, int, str]]) -> int:
     markers = 0
-    markers += len(REPEATED_PUNCT.findall(text))
+    markers += len(REPEATED_PUNCT_PATTERN.findall(text))
     markers += sum(1 for token in TYPO_TOKENS if token in lowered)
     markers += sum(1 for _, _, sentence in sentences if sentence and sentence[0].islower())
     return markers
@@ -162,14 +157,14 @@ def extract_text_features(text: str) -> Dict[str, float]:
             sum(1 for _, _, sentence in sentences if sentence.endswith((".", "!", "?"))), sentence_count
         ),
         "typo_marker_rate": _safe_div(_typo_markers(text, lowered, sentences), max(1, sentence_count)),
-        "repeated_punct_rate": _safe_div(len(REPEATED_PUNCT.findall(text)), max(1, sentence_count)),
-        "double_space_rate": _safe_div(len(DOUBLE_SPACE.findall(text)), max(1, sentence_count)),
+        "repeated_punct_rate": _safe_div(len(REPEATED_PUNCT_PATTERN.findall(text)), max(1, sentence_count)),
+        "double_space_rate": _safe_div(len(DOUBLE_SPACE_PATTERN.findall(text)), max(1, sentence_count)),
         "uppercase_ratio": _safe_div(sum(1 for char in text if char.isupper()), char_count),
         "digit_ratio": _safe_div(sum(1 for char in text if char.isdigit()), char_count),
         "comma_rate": _safe_div(text.count(","), max(1, sentence_count)),
         "exclamation_rate": _safe_div(text.count("!"), max(1, sentence_count)),
         "emoji_rate": _safe_div(len(EMOJI_PATTERN.findall(text)), max(1, sentence_count)),
-        "smart_punctuation_rate": _safe_div(len(SMART_QUOTES.findall(text)), max(1, sentence_count)),
+        "smart_punctuation_rate": _safe_div(len(SMART_QUOTES_PATTERN.findall(text)), max(1, sentence_count)),
         "spaced_dash_rate": _safe_div(len(DASH_PATTERN.findall(text)), max(1, sentence_count)),
         "marketing_phrase_rate": _safe_div(_phrase_hits(lowered, MARKETING_PHRASES), max(1, sentence_count)),
         "connective_rate": _safe_div(_phrase_hits(lowered, CONNECTIVES), max(1, sentence_count)),
@@ -179,7 +174,7 @@ def extract_text_features(text: str) -> Dict[str, float]:
         "closer_phrase": 1.0 if _phrase_hits(lowered[-200:], CLOSERS) else 0.0,
         "generic_greeting": 1.0 if _phrase_hits(lowered, GENERIC_GREETINGS) else 0.0,
         "repeated_bigram_ratio": 1.0 - _safe_div(len(unique_bigrams), len(bigrams)) if bigrams else 0.0,
-        "url_rate": _safe_div(len(URL_PATTERN.findall(text)), max(1, sentence_count)),
+        "url_rate": _safe_div(len(TEXT_URL_PATTERN.findall(text)), max(1, sentence_count)),
         "function_word_ratio": _safe_div(
             sum(1 for token in tokens if token in FUNCTION_WORD_SET), token_count
         ),

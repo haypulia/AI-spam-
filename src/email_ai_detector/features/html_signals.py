@@ -5,18 +5,20 @@ from typing import Dict, List
 
 from .lexicons import SUSPICIOUS_COMMENT_MARKERS, TEMPLATE_PATTERNS
 from .normalize import collapse_all_spaces, drop_invisible
-
-COMMENT_PATTERN = re.compile(r"<!--(.*?)-->", re.DOTALL)
-TAG_PATTERN = re.compile(r"<\s*(/?)\s*([a-zA-Z0-9]+)", re.IGNORECASE)
-STYLE_PATTERN = re.compile(r'style\s*=\s*"([^"]*)"', re.IGNORECASE)
-EMPTY_CELL_PATTERN = re.compile(r"<td[^>]*>\s*(?:&nbsp;|\s)*</td>", re.IGNORECASE)
-IMG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
-ALT_PATTERN = re.compile(r'alt\s*=\s*"[^"]+"', re.IGNORECASE)
-TEXT_TAG_PATTERN = re.compile(r"<[^>]+>")
-NON_CONTENT_PATTERN = re.compile(
-    r"<(style|script|head)\b[^>]*>.*?</\1\s*>|<(style|script)\b[^>]*>.*",
-    re.DOTALL | re.IGNORECASE,
+from .patterns import (
+    ALT_PATTERN,
+    COMMENT_PATTERN,
+    EMPTY_CELL_PATTERN,
+    IMG_PATTERN,
+    LIST_BLOCK_PATTERN,
+    NON_CONTENT_PATTERN,
+    SECTION_BLOCK_PATTERN,
+    STYLE_PATTERN,
+    TABLE_BLOCK_PATTERN,
+    TAG_PATTERN,
+    TEXT_TAG_PATTERN,
 )
+
 TEMPLATE_REGEXES = tuple(re.compile(pattern, re.IGNORECASE) for pattern in TEMPLATE_PATTERNS)
 
 HTML_FEATURE_NAMES = (
@@ -130,3 +132,21 @@ def html_evidence(html: str) -> Dict[str, list]:
         "table_depth": [max_table_depth(html)],
         "empty_cells": EMPTY_CELL_PATTERN.findall(html or "")[:5],
     }
+
+
+def split_html_into_blocks(html: str, max_length: int = 25000) -> List[dict]:
+    html = html or ""
+    if len(html) > max_length:
+        html = html[:max_length]
+
+    blocks: List[dict] = []
+    for index, table in enumerate(TABLE_BLOCK_PATTERN.findall(html)):
+        blocks.append({"type": "table", "content": table, "position": "table_%d" % index})
+    for index, section in enumerate(SECTION_BLOCK_PATTERN.findall(html)):
+        blocks.append({"type": "div_section", "content": section, "position": "section_%d" % index})
+    for index, item in enumerate(LIST_BLOCK_PATTERN.findall(html)):
+        blocks.append({"type": "list", "content": item, "position": "list_%d" % index})
+
+    if not blocks and html.strip():
+        blocks.append({"type": "text_block", "content": html, "position": "full_text"})
+    return blocks

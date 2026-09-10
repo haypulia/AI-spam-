@@ -1,16 +1,9 @@
-import re
-
-INVISIBLE_PATTERN = re.compile(
-    "["
-    "­͏؜ᅟᅠ឴឵"
-    "᠋-᠏​-‏‪-‮⁠-⁯"
-    "ㅤ︀-️﻿ﾠ￰-￸"
-    "]"
+from .patterns import (
+    ALL_SPACE_PATTERN,
+    BLANK_LINES_PATTERN,
+    INLINE_SPACE_PATTERN,
+    INVISIBLE_PATTERN,
 )
-
-INLINE_SPACE_PATTERN = re.compile(r"[^\S\n]+")
-BLANK_LINES_PATTERN = re.compile(r"\n{3,}")
-ALL_SPACE_PATTERN = re.compile(r"[\s ]+")
 
 
 def drop_invisible(text: str) -> str:

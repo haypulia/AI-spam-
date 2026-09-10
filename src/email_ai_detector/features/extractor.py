@@ -10,8 +10,8 @@ from .obfuscation import (
     extract_obfuscation_features,
     obfuscation_evidence,
 )
+from .patterns import REPEATED_PUNCT_PATTERN
 from .text_signals import (
-    REPEATED_PUNCT,
     SUBJECT_FEATURE_NAMES,
     TEXT_FEATURE_NAMES,
     extract_subject_features,
@@ -99,12 +99,12 @@ def _edge_features(sentences: Sequence[Tuple[int, int, str]]) -> Dict[str, float
         "opener_capitalized": 1.0 if first[:1].isupper() else 0.0,
         "opener_terminated": 1.0 if first.endswith((".", "!", "?")) else 0.0,
         "opener_len_log": math.log1p(len(first)),
-        "opener_typo": float(len(REPEATED_PUNCT.findall(first))),
+        "opener_typo": float(len(REPEATED_PUNCT_PATTERN.findall(first))),
         "closer_signoff": 1.0 if any(phrase in last_lowered for phrase in CLOSERS) else 0.0,
         "closer_capitalized": 1.0 if last[:1].isupper() else 0.0,
         "closer_terminated": 1.0 if last.endswith((".", "!", "?")) else 0.0,
         "closer_len_log": math.log1p(len(last)),
-        "closer_typo": float(len(REPEATED_PUNCT.findall(last))),
+        "closer_typo": float(len(REPEATED_PUNCT_PATTERN.findall(last))),
     }
 
 

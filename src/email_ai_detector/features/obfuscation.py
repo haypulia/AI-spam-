@@ -1,22 +1,20 @@
-import re
 from typing import Dict, Iterator, Tuple
 
-from .normalize import INVISIBLE_PATTERN
+from .patterns import (
+    CYRILLIC_PATTERN,
+    EMAIL_PATTERN,
+    INTRAWORD_INVISIBLE_PATTERN,
+    INVISIBLE_PATTERN,
+    LATIN_PATTERN,
+    LETTER_WORD_PATTERN,
+    LINK_PATTERN,
+)
 
 OBFUSCATION_FEATURE_NAMES: Tuple[str, ...] = (
     "obfuscation_invisible_rate",
     "obfuscation_intraword_invisible",
     "obfuscation_mixed_script_rate",
     "obfuscation_inner_capital_rate",
-)
-
-WORD_PATTERN = re.compile(r"[^\W\d_]+", re.UNICODE)
-URL_PATTERN = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
-EMAIL_PATTERN = re.compile(r"\S+@\S+")
-CYRILLIC_PATTERN = re.compile(r"[Ѐ-ӿ]")
-LATIN_PATTERN = re.compile(r"[A-Za-z]")
-INTRAWORD_INVISIBLE_PATTERN = re.compile(
-    r"(?<=[^\W\d_])%s(?=[^\W\d_])" % INVISIBLE_PATTERN.pattern, re.UNICODE
 )
 
 TOKEN_TRIM = "\"'«»„“”().,;:!?[]{}<>-–—…\\/|*_"
@@ -47,7 +45,7 @@ def _safe_div(numerator: float, denominator: float) -> float:
 
 
 def prose_words(text: str) -> Iterator[str]:
-    cleaned = EMAIL_PATTERN.sub(" ", URL_PATTERN.sub(" ", text or ""))
+    cleaned = EMAIL_PATTERN.sub(" ", LINK_PATTERN.sub(" ", text or ""))
     for token in cleaned.split():
         token = token.strip(TOKEN_TRIM)
         if token and token.isalpha():
@@ -87,7 +85,7 @@ def _source_text(text: str, subject: str, html: str) -> str:
 
 def extract_obfuscation_features(text: str = "", subject: str = "", html: str = "") -> Dict[str, float]:
     source = _source_text(text, subject, html)
-    word_count = len(WORD_PATTERN.findall(source))
+    word_count = len(LETTER_WORD_PATTERN.findall(source))
 
     return {
         "obfuscation_invisible_rate": _safe_div(len(INVISIBLE_PATTERN.findall(source)), len(source)),
