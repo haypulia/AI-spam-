@@ -1,11 +1,11 @@
 {
-  "decision_threshold": 0.5,
-  "decision_f1": 0.9189,
-  "decision_balanced_accuracy": 0.8734,
-  "explanation_threshold": 0.3,
-  "explanation_f1_macro": 0.7767,
+  "decision_threshold": 0.416,
+  "decision_f1": 0.9226,
+  "decision_balanced_accuracy": 0.8766,
+  "explanation_threshold": 0.2,
+  "explanation_f1_macro": 0.8183,
   "segment_threshold": 0.5,
-  "segment_localization_f1": 0.7461,
+  "segment_localization_f1": 0.777,
   "records": 188,
   "scorer": "heuristic",
   "split": "validation"
