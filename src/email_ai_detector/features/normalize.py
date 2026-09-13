@@ -21,9 +21,3 @@ def collapse_all_spaces(text: str) -> str:
 
 def normalize_text(text: str) -> str:
     return collapse_inline_spaces(drop_invisible(text)).strip()
-
-
-def invisible_ratio(text: str) -> float:
-    if not text:
-        return 0.0
-    return len(INVISIBLE_PATTERN.findall(text)) / len(text)

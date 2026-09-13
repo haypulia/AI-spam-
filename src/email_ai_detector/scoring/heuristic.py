@@ -70,6 +70,20 @@ FEATURE_LABELS = {
 }
 
 
+SIGNAL_FEATURES = (
+    "body_sentence_capitalization_rate",
+    "body_typo_marker_rate",
+    "body_marketing_phrase_rate",
+    "body_burstiness",
+    "html_template_variable",
+    "html_suspicious_comment",
+    "ocr_present",
+    "obfuscation_intraword_invisible",
+    "obfuscation_mixed_script_rate",
+    "obfuscation_inner_capital_rate",
+)
+
+
 class HeuristicScorer(Scorer):
     name = "heuristic"
 
@@ -196,6 +210,21 @@ class HeuristicScorer(Scorer):
 
         return " ".join(parts)
 
+    def _categories(self, features) -> Dict[str, float]:
+        categories = dict(features.categories)
+        if self.explainer:
+            categories.update(self.explainer.predict(features.vector))
+        return categories
+
+    def _meta(self) -> Dict[str, object]:
+        return {
+            "model": "linear" if self.model is not None else "rule_based",
+            "segment_model": "linear" if self.segment_model is not None else "rule_based",
+            "explainer": "linear" if self.explainer else "rule_based",
+            "feature_count": len(FEATURE_NAMES),
+            "segment_feature_count": len(SEGMENT_FEATURE_NAMES),
+        }
+
     def score_email(
         self,
         text: str = "",
@@ -205,26 +234,9 @@ class HeuristicScorer(Scorer):
     ) -> ScoreResult:
         features = extract_features(text=text, subject=subject, html=html, ocr_text=ocr_text)
         score = self._document_score(features)
-        categories = dict(features.categories)
-        if self.explainer:
-            categories.update(self.explainer.predict(features.vector))
+        categories = self._categories(features)
         segments = self.score_segments(text or "")
-
-        signals = {
-            name: features.vector.get(name, 0.0)
-            for name in (
-                "body_sentence_capitalization_rate",
-                "body_typo_marker_rate",
-                "body_marketing_phrase_rate",
-                "body_burstiness",
-                "html_template_variable",
-                "html_suspicious_comment",
-                "ocr_present",
-                "obfuscation_intraword_invisible",
-                "obfuscation_mixed_script_rate",
-                "obfuscation_inner_capital_rate",
-            )
-        }
+        signals = {name: features.vector.get(name, 0.0) for name in SIGNAL_FEATURES}
 
         return ScoreResult(
             score=score,
@@ -235,11 +247,5 @@ class HeuristicScorer(Scorer):
             segments=segments,
             scorer=self.name,
             thresholds=self.thresholds,
-            meta={
-                "model": "linear" if self.model is not None else "rule_based",
-                "segment_model": "linear" if self.segment_model is not None else "rule_based",
-                "explainer": "linear" if self.explainer else "rule_based",
-                "feature_count": len(FEATURE_NAMES),
-                "segment_feature_count": len(SEGMENT_FEATURE_NAMES),
-            },
+            meta=self._meta(),
         )

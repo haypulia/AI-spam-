@@ -124,82 +124,115 @@ def _opening_repetition(sentences: Sequence[Tuple[int, int, str]]) -> float:
     return 1.0 - len(set(openings)) / len(openings)
 
 
-def extract_text_features(text: str) -> Dict[str, float]:
-    text = text or ""
-    lowered = text.lower()
-    sentences = split_sentences(text)
-    tokens = tokenize(text)
+def _length_features(tokens: Sequence[str], lengths: Sequence[int]) -> Dict[str, float]:
     token_count = len(tokens)
-    char_count = len(text)
-    sentence_count = len(sentences)
-    unique_tokens = set(tokens)
-    lengths = [len(tokenize(sentence)) for _, _, sentence in sentences]
     mean_length = _safe_div(sum(lengths), len(lengths))
+    return {
+        "word_count_log": math.log1p(token_count),
+        "avg_sentence_len": mean_length,
+        "sentence_len_std": _std(lengths),
+        "burstiness": _safe_div(_std(lengths), mean_length),
+        "avg_word_len": _safe_div(sum(len(token) for token in tokens), token_count),
+        "long_word_ratio": _safe_div(sum(1 for token in tokens if len(token) > 7), token_count),
+    }
+
+
+def _lexical_features(tokens: Sequence[str]) -> Dict[str, float]:
+    token_count = len(tokens)
     counts: Dict[str, int] = {}
     for token in tokens:
         counts[token] = counts.get(token, 0) + 1
     hapax = sum(1 for value in counts.values() if value == 1)
     bigrams = [tuple(tokens[index : index + 2]) for index in range(max(0, token_count - 1))]
-    unique_bigrams = set(bigrams)
-
-    features = {
-        "word_count_log": math.log1p(token_count),
-        "avg_sentence_len": mean_length,
-        "sentence_len_std": _std(lengths),
-        "burstiness": _safe_div(_std(lengths), mean_length),
-        "type_token_ratio": _safe_div(len(unique_tokens), token_count),
+    return {
+        "type_token_ratio": _safe_div(len(set(tokens)), token_count),
         "hapax_ratio": _safe_div(hapax, token_count),
-        "avg_word_len": _safe_div(sum(len(token) for token in tokens), token_count),
+        "repeated_bigram_ratio": 1.0 - _safe_div(len(set(bigrams)), len(bigrams)) if bigrams else 0.0,
+        "function_word_ratio": _safe_div(
+            sum(1 for token in tokens if token in FUNCTION_WORD_SET), token_count
+        ),
+        "digit_token_ratio": _safe_div(
+            sum(1 for token in tokens if any(char.isdigit() for char in token)), token_count
+        ),
+    }
+
+
+def _punctuation_features(
+    text: str, lowered: str, sentences: Sequence[Tuple[int, int, str]]
+) -> Dict[str, float]:
+    sentence_count = len(sentences)
+    per_sentence = max(1, sentence_count)
+    char_count = len(text)
+    return {
         "sentence_capitalization_rate": _safe_div(
             sum(1 for _, _, sentence in sentences if sentence[:1].isupper()), sentence_count
         ),
         "sentence_terminator_rate": _safe_div(
             sum(1 for _, _, sentence in sentences if sentence.endswith((".", "!", "?"))), sentence_count
         ),
-        "typo_marker_rate": _safe_div(_typo_markers(text, lowered, sentences), max(1, sentence_count)),
-        "repeated_punct_rate": _safe_div(len(REPEATED_PUNCT_PATTERN.findall(text)), max(1, sentence_count)),
-        "double_space_rate": _safe_div(len(DOUBLE_SPACE_PATTERN.findall(text)), max(1, sentence_count)),
+        "typo_marker_rate": _safe_div(_typo_markers(text, lowered, sentences), per_sentence),
+        "repeated_punct_rate": _safe_div(len(REPEATED_PUNCT_PATTERN.findall(text)), per_sentence),
+        "double_space_rate": _safe_div(len(DOUBLE_SPACE_PATTERN.findall(text)), per_sentence),
         "uppercase_ratio": _safe_div(sum(1 for char in text if char.isupper()), char_count),
         "digit_ratio": _safe_div(sum(1 for char in text if char.isdigit()), char_count),
-        "comma_rate": _safe_div(text.count(","), max(1, sentence_count)),
-        "exclamation_rate": _safe_div(text.count("!"), max(1, sentence_count)),
-        "emoji_rate": _safe_div(len(EMOJI_PATTERN.findall(text)), max(1, sentence_count)),
-        "smart_punctuation_rate": _safe_div(len(SMART_QUOTES_PATTERN.findall(text)), max(1, sentence_count)),
-        "spaced_dash_rate": _safe_div(len(DASH_PATTERN.findall(text)), max(1, sentence_count)),
-        "marketing_phrase_rate": _safe_div(_phrase_hits(lowered, MARKETING_PHRASES), max(1, sentence_count)),
-        "connective_rate": _safe_div(_phrase_hits(lowered, CONNECTIVES), max(1, sentence_count)),
-        "urgency_rate": _safe_div(_phrase_hits(lowered, URGENCY), max(1, sentence_count)),
-        "cta_phrase_rate": _safe_div(_phrase_hits(lowered, CALL_TO_ACTION), max(1, sentence_count)),
+        "comma_rate": _safe_div(text.count(","), per_sentence),
+        "exclamation_rate": _safe_div(text.count("!"), per_sentence),
+        "emoji_rate": _safe_div(len(EMOJI_PATTERN.findall(text)), per_sentence),
+        "smart_punctuation_rate": _safe_div(len(SMART_QUOTES_PATTERN.findall(text)), per_sentence),
+        "spaced_dash_rate": _safe_div(len(DASH_PATTERN.findall(text)), per_sentence),
+        "url_rate": _safe_div(len(TEXT_URL_PATTERN.findall(text)), per_sentence),
+        "clause_density": _safe_div(len(CLAUSE_PATTERN.findall(text)), per_sentence),
+    }
+
+
+def _phrase_features(lowered: str, per_sentence: int) -> Dict[str, float]:
+    return {
+        "marketing_phrase_rate": _safe_div(_phrase_hits(lowered, MARKETING_PHRASES), per_sentence),
+        "connective_rate": _safe_div(_phrase_hits(lowered, CONNECTIVES), per_sentence),
+        "urgency_rate": _safe_div(_phrase_hits(lowered, URGENCY), per_sentence),
+        "cta_phrase_rate": _safe_div(_phrase_hits(lowered, CALL_TO_ACTION), per_sentence),
         "opener_phrase": 1.0 if _phrase_hits(lowered[:160], OPENERS) else 0.0,
         "closer_phrase": 1.0 if _phrase_hits(lowered[-200:], CLOSERS) else 0.0,
         "generic_greeting": 1.0 if _phrase_hits(lowered, GENERIC_GREETINGS) else 0.0,
-        "repeated_bigram_ratio": 1.0 - _safe_div(len(unique_bigrams), len(bigrams)) if bigrams else 0.0,
-        "url_rate": _safe_div(len(TEXT_URL_PATTERN.findall(text)), max(1, sentence_count)),
-        "function_word_ratio": _safe_div(
-            sum(1 for token in tokens if token in FUNCTION_WORD_SET), token_count
-        ),
-        "long_word_ratio": _safe_div(sum(1 for token in tokens if len(token) > 7), token_count),
-        "clause_density": _safe_div(len(CLAUSE_PATTERN.findall(text)), max(1, sentence_count)),
-        "specificity_rate": _safe_div(
-            len(IDENTIFIER_PATTERN.findall(text))
-            + len(DATE_PATTERN.findall(text))
-            + len(CURRENCY_PATTERN.findall(text)),
-            max(1, sentence_count),
-        ),
-        "digit_token_ratio": _safe_div(
-            sum(1 for token in tokens if any(char.isdigit() for char in token)), token_count
-        ),
-        "identifier_rate": _safe_div(len(IDENTIFIER_PATTERN.findall(text)), max(1, sentence_count)),
-        "sentence_opening_repetition": _opening_repetition(sentences),
-        "imperative_opening_rate": _safe_div(
-            sum(
-                1
-                for _, _, sentence in sentences
-                if tokenize(sentence)[:1] and tokenize(sentence)[0] in IMPERATIVE_SET
-            ),
-            max(1, sentence_count),
-        ),
     }
+
+
+def _imperative_openings(sentences: Sequence[Tuple[int, int, str]]) -> int:
+    total = 0
+    for _, _, sentence in sentences:
+        tokens = tokenize(sentence)
+        if tokens and tokens[0] in IMPERATIVE_SET:
+            total += 1
+    return total
+
+
+def _specificity_features(text: str, sentences: Sequence[Tuple[int, int, str]]) -> Dict[str, float]:
+    per_sentence = max(1, len(sentences))
+    identifiers = len(IDENTIFIER_PATTERN.findall(text))
+    return {
+        "specificity_rate": _safe_div(
+            identifiers + len(DATE_PATTERN.findall(text)) + len(CURRENCY_PATTERN.findall(text)),
+            per_sentence,
+        ),
+        "identifier_rate": _safe_div(identifiers, per_sentence),
+        "sentence_opening_repetition": _opening_repetition(sentences),
+        "imperative_opening_rate": _safe_div(_imperative_openings(sentences), per_sentence),
+    }
+
+
+def extract_text_features(text: str) -> Dict[str, float]:
+    text = text or ""
+    lowered = text.lower()
+    sentences = split_sentences(text)
+    tokens = tokenize(text)
+    lengths = [len(tokenize(sentence)) for _, _, sentence in sentences]
+
+    features: Dict[str, float] = {}
+    features.update(_length_features(tokens, lengths))
+    features.update(_lexical_features(tokens))
+    features.update(_punctuation_features(text, lowered, sentences))
+    features.update(_phrase_features(lowered, max(1, len(sentences))))
+    features.update(_specificity_features(text, sentences))
     return {name: float(features.get(name, 0.0)) for name in TEXT_FEATURE_NAMES}
 
 

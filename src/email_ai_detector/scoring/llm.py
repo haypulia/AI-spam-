@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from ..features import extract_features, normalize_category
+from ..features import EXPLANATION_CATEGORIES, extract_features, normalize_category
 from ..features.html_signals import split_html_into_blocks, strip_tags
 from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, VerdictThresholds
 from .engine import analyze_chunk_vector, analyze_email_vector
@@ -219,19 +219,16 @@ class LLMScorer(Scorer):
             vector[field] = flag in flags
         return vector
 
-    def score_email(
-        self,
-        text: str = "",
-        subject: str = "",
-        html: str = "",
-        ocr_text: str = "",
-    ) -> ScoreResult:
-        blocks = split_html_into_blocks(html, self.max_html_length)[: self.max_blocks]
+    @staticmethod
+    def _probability(result: dict) -> float:
+        return float(result.get("ai_probability", 0) or 0) / 100.0
+
+    def _score_blocks(self, html: str):
         block_results = []
         block_scores = []
         flags: List[str] = []
 
-        for block in blocks:
+        for block in split_html_into_blocks(html, self.max_html_length)[: self.max_blocks]:
             block_result = self.analyze_block(block["content"])
             vector_result = analyze_chunk_vector(self._block_vector(block_result))
             block_scores.append(vector_result["AI_Score"])
@@ -248,21 +245,18 @@ class LLMScorer(Scorer):
                 }
             )
 
-        plain_text = text or strip_tags(html)
-        text_result = self.analyze_text("%s\n\n%s" % (subject, plain_text) if subject else plain_text)
-        ocr_result = self.analyze_ocr(ocr_text)
+        return block_results, block_scores, flags
 
-        html_component = sum(block_scores) / len(block_scores) if block_scores else 0.0
-        text_component = max(0.0, min(1.0, float(text_result.get("ai_probability", 0) or 0) / 100.0))
-        html_score = max(html_component, text_component) if text_component else html_component
-
-        combined = analyze_email_vector(
-            html_score=html_score,
-            ocr_score=float(ocr_result.get("ai_probability", 0) or 0) / 100.0,
-            has_ocr=bool((ocr_text or "").strip()),
-        )
-
-        categories: Dict[str, float] = {name: 0.0 for name in ("subject", "opener", "body", "cta", "closer", "html_template", "image")}
+    def _model_categories(
+        self,
+        text_result: dict,
+        text_component: float,
+        flags: List[str],
+        html_component: float,
+        ocr_text: str,
+        ocr_result: dict,
+    ) -> Dict[str, float]:
+        categories: Dict[str, float] = {name: 0.0 for name in EXPLANATION_CATEGORIES}
         for part in text_result.get("parts", []):
             key = normalize_category(str(part).strip().lower())
             if key in categories:
@@ -272,20 +266,54 @@ class LLMScorer(Scorer):
             if key:
                 categories[key] = max(categories[key], html_component or 1.0)
         if (ocr_text or "").strip():
-            categories["image"] = max(
-                categories["image"], float(ocr_result.get("ai_probability", 0) or 0) / 100.0
-            )
+            categories["image"] = max(categories["image"], self._probability(ocr_result))
+        return categories
 
-        fallback_categories = extract_features(text=plain_text, subject=subject, html=html, ocr_text=ocr_text).categories
-        for key, value in fallback_categories.items():
-            if categories.get(key, 0.0) == 0.0 and combined["AI_Score"] >= 0.5:
+    @staticmethod
+    def _fill_missing_categories(
+        categories: Dict[str, float], score: float, text: str, subject: str, html: str, ocr_text: str
+    ) -> None:
+        fallback = extract_features(text=text, subject=subject, html=html, ocr_text=ocr_text).categories
+        for key, value in fallback.items():
+            if categories.get(key, 0.0) == 0.0 and score >= 0.5:
                 categories[key] = value
 
-        explanation_parts = [combined["Explanation"]]
+    @staticmethod
+    def _explanation(combined: dict, text_result: dict, flags: List[str]) -> str:
+        parts = [combined["Explanation"]]
         if text_result.get("summary"):
-            explanation_parts.append(str(text_result["summary"]))
+            parts.append(str(text_result["summary"]))
         if flags:
-            explanation_parts.append("Структурные флаги разметки: %s." % ", ".join(flags[:8]))
+            parts.append("Структурные флаги разметки: %s." % ", ".join(flags[:8]))
+        return " ".join(part for part in parts if part)
+
+    def score_email(
+        self,
+        text: str = "",
+        subject: str = "",
+        html: str = "",
+        ocr_text: str = "",
+    ) -> ScoreResult:
+        block_results, block_scores, flags = self._score_blocks(html)
+
+        plain_text = text or strip_tags(html)
+        text_result = self.analyze_text("%s\n\n%s" % (subject, plain_text) if subject else plain_text)
+        ocr_result = self.analyze_ocr(ocr_text)
+
+        html_component = sum(block_scores) / len(block_scores) if block_scores else 0.0
+        text_component = max(0.0, min(1.0, self._probability(text_result)))
+        html_score = max(html_component, text_component) if text_component else html_component
+
+        combined = analyze_email_vector(
+            html_score=html_score,
+            ocr_score=self._probability(ocr_result),
+            has_ocr=bool((ocr_text or "").strip()),
+        )
+
+        categories = self._model_categories(
+            text_result, text_component, flags, html_component, ocr_text, ocr_result
+        )
+        self._fill_missing_categories(categories, combined["AI_Score"], plain_text, subject, html, ocr_text)
 
         return ScoreResult(
             score=combined["AI_Score"],
@@ -294,9 +322,9 @@ class LLMScorer(Scorer):
             signals={
                 "html_score": html_component,
                 "text_score": text_component,
-                "ocr_score": float(ocr_result.get("ai_probability", 0) or 0) / 100.0,
+                "ocr_score": self._probability(ocr_result),
             },
-            explanation=" ".join(part for part in explanation_parts if part),
+            explanation=self._explanation(combined, text_result, flags),
             scorer=self.name,
             thresholds=self.thresholds,
             meta={"model": self.model, "blocks": block_results, "flags": flags},
