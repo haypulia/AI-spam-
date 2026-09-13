@@ -53,12 +53,3 @@ TEXT:
 
 Return ONLY valid JSON:
 {{"ai_probability": 0-100, "flags": [], "parts": [], "summary": ""}}"""
-
-OCR_USER_PROMPT = """The following text was recognized on images embedded in an email.
-Estimate whether it was generated or strongly assisted by a language model.
-
-OCR TEXT:
-{text}
-
-Return ONLY valid JSON:
-{{"ai_probability": 0-100, "flags": [], "summary": ""}}"""

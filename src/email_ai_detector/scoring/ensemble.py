@@ -23,10 +23,9 @@ class EnsembleScorer(Scorer):
         text: str = "",
         subject: str = "",
         html: str = "",
-        ocr_text: str = "",
     ) -> ScoreResult:
         results = [
-            scorer.score_email(text=text, subject=subject, html=html, ocr_text=ocr_text)
+            scorer.score_email(text=text, subject=subject, html=html)
             for scorer in self.scorers
         ]
 

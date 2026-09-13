@@ -12,7 +12,6 @@ from .engine import analyze_chunk_vector, analyze_email_vector
 from .prompts import (
     HTML_SYSTEM_PROMPT,
     HTML_USER_PROMPT,
-    OCR_USER_PROMPT,
     TEXT_SYSTEM_PROMPT,
     TEXT_USER_PROMPT,
 )
@@ -199,19 +198,6 @@ class LLMScorer(Scorer):
             "summary": parsed.get("summary", "") or parsed.get("error", ""),
         }
 
-    def analyze_ocr(self, ocr_text: str) -> dict:
-        clean = (ocr_text or "").strip()
-        if not clean:
-            return {"ai_probability": 0, "flags": [], "summary": ""}
-        if len(clean) > self.max_block_length:
-            clean = clean[: self.max_block_length]
-        parsed = self._request(TEXT_SYSTEM_PROMPT, OCR_USER_PROMPT.format(text=clean))
-        return {
-            "ai_probability": parsed.get("ai_probability", 0),
-            "flags": parsed.get("flags", []) or [],
-            "summary": parsed.get("summary", "") or parsed.get("error", ""),
-        }
-
     def _block_vector(self, block_result: dict) -> dict:
         flags = {str(flag).upper().strip() for flag in block_result.get("flags", [])}
         vector = {"llm_probability": block_result.get("ai_probability", 0)}
@@ -253,8 +239,6 @@ class LLMScorer(Scorer):
         text_component: float,
         flags: List[str],
         html_component: float,
-        ocr_text: str,
-        ocr_result: dict,
     ) -> Dict[str, float]:
         categories: Dict[str, float] = {name: 0.0 for name in EXPLANATION_CATEGORIES}
         for part in text_result.get("parts", []):
@@ -265,15 +249,13 @@ class LLMScorer(Scorer):
             key = FLAG_TO_CATEGORY.get(str(flag).upper().strip())
             if key:
                 categories[key] = max(categories[key], html_component or 1.0)
-        if (ocr_text or "").strip():
-            categories["image"] = max(categories["image"], self._probability(ocr_result))
         return categories
 
     @staticmethod
     def _fill_missing_categories(
-        categories: Dict[str, float], score: float, text: str, subject: str, html: str, ocr_text: str
+        categories: Dict[str, float], score: float, text: str, subject: str, html: str
     ) -> None:
-        fallback = extract_features(text=text, subject=subject, html=html, ocr_text=ocr_text).categories
+        fallback = extract_features(text=text, subject=subject, html=html).categories
         for key, value in fallback.items():
             if categories.get(key, 0.0) == 0.0 and score >= 0.5:
                 categories[key] = value
@@ -292,28 +274,20 @@ class LLMScorer(Scorer):
         text: str = "",
         subject: str = "",
         html: str = "",
-        ocr_text: str = "",
     ) -> ScoreResult:
         block_results, block_scores, flags = self._score_blocks(html)
 
         plain_text = text or strip_tags(html)
         text_result = self.analyze_text("%s\n\n%s" % (subject, plain_text) if subject else plain_text)
-        ocr_result = self.analyze_ocr(ocr_text)
 
         html_component = sum(block_scores) / len(block_scores) if block_scores else 0.0
         text_component = max(0.0, min(1.0, self._probability(text_result)))
-        html_score = max(html_component, text_component) if text_component else html_component
+        email_score = max(html_component, text_component) if text_component else html_component
 
-        combined = analyze_email_vector(
-            html_score=html_score,
-            ocr_score=self._probability(ocr_result),
-            has_ocr=bool((ocr_text or "").strip()),
-        )
+        combined = analyze_email_vector(email_score)
 
-        categories = self._model_categories(
-            text_result, text_component, flags, html_component, ocr_text, ocr_result
-        )
-        self._fill_missing_categories(categories, combined["AI_Score"], plain_text, subject, html, ocr_text)
+        categories = self._model_categories(text_result, text_component, flags, html_component)
+        self._fill_missing_categories(categories, combined["AI_Score"], plain_text, subject, html)
 
         return ScoreResult(
             score=combined["AI_Score"],
@@ -322,7 +296,6 @@ class LLMScorer(Scorer):
             signals={
                 "html_score": html_component,
                 "text_score": text_component,
-                "ocr_score": self._probability(ocr_result),
             },
             explanation=self._explanation(combined, text_result, flags),
             scorer=self.name,

@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
 
 from ..data.eml import LoadedEmail, iter_eml_files, load_email_from_file
-from ..features.ocr import ImageOCR
 from ..scoring.base import Scorer
 from ..utils import ensure_dir, get_timestamp, save_json, truncate_text
 
@@ -16,27 +15,17 @@ class EmailAnalyzer:
     def __init__(
         self,
         scorer: Scorer,
-        ocr: Optional[ImageOCR] = None,
         results_dir: Optional[PathLike] = None,
         summary_path: Optional[PathLike] = None,
         category_threshold: float = 0.5,
     ):
         self.scorer = scorer
-        self.ocr = ocr or ImageOCR()
         self.results_dir = Path(results_dir) if results_dir else None
         self.summary_path = Path(summary_path) if summary_path else None
         self.category_threshold = category_threshold
 
     def analyze_email(self, email: LoadedEmail) -> Dict[str, object]:
-        ocr_results = self.ocr.analyze_images(email.images) if email.images else []
-        ocr_text = "\n\n".join(item["text"] for item in ocr_results if item["has_text"])
-
-        result = self.scorer.score_email(
-            text=email.text,
-            subject=email.subject,
-            html=email.html,
-            ocr_text=ocr_text,
-        )
+        result = self.scorer.score_email(text=email.text, subject=email.subject, html=email.html)
 
         return {
             "file": Path(email.path).name if email.path else "",
@@ -49,7 +38,6 @@ class EmailAnalyzer:
                 "html_preview": truncate_text(email.html, 500),
                 "images_count": len(email.images),
             },
-            "ocr": {"results": [{k: v for k, v in item.items()} for item in ocr_results]},
             "analysis": result.to_dict(self.category_threshold),
         }
 

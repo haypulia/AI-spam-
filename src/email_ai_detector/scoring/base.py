@@ -110,7 +110,6 @@ class Scorer(ABC):
         text: str = "",
         subject: str = "",
         html: str = "",
-        ocr_text: str = "",
     ) -> ScoreResult:
         raise NotImplementedError
 
@@ -122,7 +121,6 @@ class Scorer(ABC):
                     text=getattr(record, "text", "") or "",
                     subject=getattr(record, "subject", "") or "",
                     html=getattr(record, "html", "") or "",
-                    ocr_text=getattr(record, "ocr_text", "") or "",
                 )
             )
             if progress:

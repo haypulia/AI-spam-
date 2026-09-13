@@ -30,10 +30,10 @@ def test_chunk_vector_weights_sum_to_one():
     assert result["AI_Score"] == 1.0
 
 
-def test_email_vector_uses_ocr_weights():
-    without_ocr = analyze_email_vector(0.8, 0.2, has_ocr=False)
-    with_ocr = analyze_email_vector(0.8, 0.2, has_ocr=True)
-    assert without_ocr["AI_Score"] > with_ocr["AI_Score"]
+def test_email_vector_keeps_text_score():
+    result = analyze_email_vector(0.8)
+    assert result["AI_Score"] == 0.8
+    assert result["Verdict"] == analyze_email_vector(80)["Verdict"]
 
 
 def test_heuristic_scorer_returns_bounded_score():
