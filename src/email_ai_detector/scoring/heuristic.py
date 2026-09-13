@@ -8,11 +8,25 @@ from ..features import (
     extract_features,
     iter_segments,
 )
-from .base import Scorer, ScoreResult, Segment
+from .base import DEFAULT_THRESHOLDS, Scorer, ScoreResult, Segment, VerdictThresholds
 from .explainer import CategoryExplainer
 from .model import LinearModel
 
 PathLike = Union[str, Path]
+
+OBFUSCATION_LIMITS = {
+    "obfuscation_intraword_invisible": 0.05,
+    "obfuscation_mixed_script_rate": 0.02,
+    "obfuscation_inner_capital_rate": 0.05,
+    "obfuscation_invisible_rate": 0.02,
+}
+
+OBFUSCATION_LABELS = {
+    "obfuscation_intraword_invisible": "невидимые символы внутри слов",
+    "obfuscation_mixed_script_rate": "слова из смешанных алфавитов",
+    "obfuscation_inner_capital_rate": "подмена букв похожими начертаниями",
+    "obfuscation_invisible_rate": "служебные невидимые символы в тексте",
+}
 
 FALLBACK_CATEGORY_WEIGHTS = {
     "body": 0.35,
@@ -56,6 +70,20 @@ FEATURE_LABELS = {
 }
 
 
+SIGNAL_FEATURES = (
+    "body_sentence_capitalization_rate",
+    "body_typo_marker_rate",
+    "body_marketing_phrase_rate",
+    "body_burstiness",
+    "html_template_variable",
+    "html_suspicious_comment",
+    "ocr_present",
+    "obfuscation_intraword_invisible",
+    "obfuscation_mixed_script_rate",
+    "obfuscation_inner_capital_rate",
+)
+
+
 class HeuristicScorer(Scorer):
     name = "heuristic"
 
@@ -65,11 +93,13 @@ class HeuristicScorer(Scorer):
         segment_model: Optional[LinearModel] = None,
         explainer: Optional[CategoryExplainer] = None,
         category_threshold: float = 0.5,
+        thresholds: Optional[VerdictThresholds] = None,
     ):
         self.model = model
         self.segment_model = segment_model
         self.explainer = explainer
         self.category_threshold = category_threshold
+        self.thresholds = thresholds or DEFAULT_THRESHOLDS
 
     @classmethod
     def from_paths(
@@ -78,6 +108,7 @@ class HeuristicScorer(Scorer):
         segment_model_path: Optional[PathLike] = None,
         explainer_path: Optional[PathLike] = None,
         category_threshold: float = 0.5,
+        thresholds: Optional[VerdictThresholds] = None,
     ) -> "HeuristicScorer":
         model = LinearModel.load(model_path) if model_path and Path(model_path).exists() else None
         segment_model = (
@@ -95,6 +126,7 @@ class HeuristicScorer(Scorer):
             segment_model=segment_model,
             explainer=explainer,
             category_threshold=category_threshold,
+            thresholds=thresholds,
         )
 
     @classmethod
@@ -104,6 +136,9 @@ class HeuristicScorer(Scorer):
             segment_model_path=settings.models_dir / "segment_model.json",
             explainer_path=settings.models_dir / "category_models.json",
             category_threshold=category_threshold,
+            thresholds=VerdictThresholds(
+                mixed=settings.verdict_mixed_threshold, ai=settings.verdict_ai_threshold
+            ),
         )
 
     def _document_score(self, features) -> float:
@@ -138,6 +173,13 @@ class HeuristicScorer(Scorer):
             )
         return segments
 
+    def _obfuscation_notes(self, features) -> List[str]:
+        return [
+            OBFUSCATION_LABELS[name]
+            for name, limit in OBFUSCATION_LIMITS.items()
+            if features.vector.get(name, 0.0) >= limit
+        ]
+
     def _explanation(self, score: float, categories: Dict[str, float], features) -> str:
         parts = ["Итоговый индекс AI-генерации: %s/100." % round(score * 100, 1)]
 
@@ -159,10 +201,29 @@ class HeuristicScorer(Scorer):
             if drivers:
                 parts.append("Ключевые признаки: %s." % ", ".join(drivers))
 
-        if not triggered and score < 0.3:
+        notes = self._obfuscation_notes(features)
+        if notes:
+            parts.append("Признаки маскировки текста: %s." % ", ".join(notes))
+
+        if not triggered and not notes and score < 0.3:
             parts.append("Стилистика и разметка соответствуют письму, написанному человеком.")
 
         return " ".join(parts)
+
+    def _categories(self, features) -> Dict[str, float]:
+        categories = dict(features.categories)
+        if self.explainer:
+            categories.update(self.explainer.predict(features.vector))
+        return categories
+
+    def _meta(self) -> Dict[str, object]:
+        return {
+            "model": "linear" if self.model is not None else "rule_based",
+            "segment_model": "linear" if self.segment_model is not None else "rule_based",
+            "explainer": "linear" if self.explainer else "rule_based",
+            "feature_count": len(FEATURE_NAMES),
+            "segment_feature_count": len(SEGMENT_FEATURE_NAMES),
+        }
 
     def score_email(
         self,
@@ -173,23 +234,9 @@ class HeuristicScorer(Scorer):
     ) -> ScoreResult:
         features = extract_features(text=text, subject=subject, html=html, ocr_text=ocr_text)
         score = self._document_score(features)
-        categories = dict(features.categories)
-        if self.explainer:
-            categories.update(self.explainer.predict(features.vector))
+        categories = self._categories(features)
         segments = self.score_segments(text or "")
-
-        signals = {
-            name: features.vector.get(name, 0.0)
-            for name in (
-                "body_sentence_capitalization_rate",
-                "body_typo_marker_rate",
-                "body_marketing_phrase_rate",
-                "body_burstiness",
-                "html_template_variable",
-                "html_suspicious_comment",
-                "ocr_present",
-            )
-        }
+        signals = {name: features.vector.get(name, 0.0) for name in SIGNAL_FEATURES}
 
         return ScoreResult(
             score=score,
@@ -199,11 +246,6 @@ class HeuristicScorer(Scorer):
             explanation=self._explanation(score, categories, features),
             segments=segments,
             scorer=self.name,
-            meta={
-                "model": "linear" if self.model is not None else "rule_based",
-                "segment_model": "linear" if self.segment_model is not None else "rule_based",
-                "explainer": "linear" if self.explainer else "rule_based",
-                "feature_count": len(FEATURE_NAMES),
-                "segment_feature_count": len(SEGMENT_FEATURE_NAMES),
-            },
+            thresholds=self.thresholds,
+            meta=self._meta(),
         )

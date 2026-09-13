@@ -4,8 +4,14 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from .html_signals import HTML_FEATURE_NAMES, extract_html_features, html_evidence, strip_tags
 from .lexicons import CLOSERS, OPENERS
+from .normalize import normalize_text
+from .obfuscation import (
+    OBFUSCATION_FEATURE_NAMES,
+    extract_obfuscation_features,
+    obfuscation_evidence,
+)
+from .patterns import REPEATED_PUNCT_PATTERN
 from .text_signals import (
-    REPEATED_PUNCT,
     SUBJECT_FEATURE_NAMES,
     TEXT_FEATURE_NAMES,
     extract_subject_features,
@@ -45,6 +51,7 @@ FEATURE_NAMES: Tuple[str, ...] = (
     + tuple("html_%s" % name for name in HTML_FEATURE_NAMES)
     + EDGE_FEATURE_NAMES
     + OCR_FEATURE_NAMES
+    + OBFUSCATION_FEATURE_NAMES
 )
 
 
@@ -92,13 +99,77 @@ def _edge_features(sentences: Sequence[Tuple[int, int, str]]) -> Dict[str, float
         "opener_capitalized": 1.0 if first[:1].isupper() else 0.0,
         "opener_terminated": 1.0 if first.endswith((".", "!", "?")) else 0.0,
         "opener_len_log": math.log1p(len(first)),
-        "opener_typo": float(len(REPEATED_PUNCT.findall(first))),
+        "opener_typo": float(len(REPEATED_PUNCT_PATTERN.findall(first))),
         "closer_signoff": 1.0 if any(phrase in last_lowered for phrase in CLOSERS) else 0.0,
         "closer_capitalized": 1.0 if last[:1].isupper() else 0.0,
         "closer_terminated": 1.0 if last.endswith((".", "!", "?")) else 0.0,
         "closer_len_log": math.log1p(len(last)),
-        "closer_typo": float(len(REPEATED_PUNCT.findall(last))),
+        "closer_typo": float(len(REPEATED_PUNCT_PATTERN.findall(last))),
     }
+
+
+def _polish_score(text_features: Dict[str, float]) -> float:
+    return _clip(
+        0.5 * text_features["sentence_capitalization_rate"]
+        + 0.3 * text_features["sentence_terminator_rate"]
+        + 0.2 * (1.0 - _clip(text_features["typo_marker_rate"]))
+    )
+
+
+def _subject_score(subject_features: Dict[str, float]) -> float:
+    return _clip(
+        0.4 * _clip(subject_features["subject_marketing"])
+        + 0.25 * _clip(subject_features["subject_cta"])
+        + 0.2 * _clip(subject_features["subject_urgency"])
+        + 0.15 * subject_features["subject_title_rate"]
+    )
+
+
+def _opener_score(text_features: Dict[str, float], first_sentence: str) -> float:
+    return _clip(
+        0.6 * text_features["opener_phrase"]
+        + 0.4 * (1.0 if first_sentence[:1].isupper() and first_sentence.endswith((".", "!", "?")) else 0.0)
+    )
+
+
+def _closer_score(text_features: Dict[str, float], last_sentence: str) -> float:
+    return _clip(
+        0.7 * text_features["closer_phrase"]
+        + 0.3 * (1.0 if last_sentence[:1].isupper() else 0.0)
+    )
+
+
+def _cta_score(text_features: Dict[str, float], subject_features: Dict[str, float]) -> float:
+    return _clip(
+        0.7 * _clip(text_features["cta_phrase_rate"] * 2.0)
+        + 0.3 * _clip(subject_features["subject_cta"])
+    )
+
+
+def _body_score(text_features: Dict[str, float]) -> float:
+    return _clip(
+        0.45 * _polish_score(text_features)
+        + 0.25 * _clip(text_features["marketing_phrase_rate"] * 2.0)
+        + 0.2 * _clip(text_features["connective_rate"] * 2.0)
+        + 0.1 * _clip(text_features["burstiness"])
+    )
+
+
+def _html_template_score(html_features: Dict[str, float]) -> float:
+    return _clip(
+        0.3 * html_features["template_variable"]
+        + 0.25 * html_features["suspicious_comment"]
+        + 0.15 * html_features["deep_nesting"]
+        + 0.15 * html_features["duplicated_styles"]
+        + 0.15 * html_features["empty_cell"]
+    )
+
+
+def _image_score(ocr_features: Dict[str, float]) -> float:
+    return _clip(
+        ocr_features["ocr_present"]
+        * (0.4 + 0.3 * ocr_features["ocr_capitalization_rate"] + 0.3 * _clip(ocr_features["ocr_marketing_rate"] + ocr_features["ocr_cta_rate"]))
+    )
 
 
 def _category_scores(
@@ -108,65 +179,16 @@ def _category_scores(
     ocr_features: Dict[str, float],
     sentences: Sequence[Tuple[int, int, str]],
 ) -> Dict[str, float]:
-    polish = _clip(
-        0.5 * text_features["sentence_capitalization_rate"]
-        + 0.3 * text_features["sentence_terminator_rate"]
-        + 0.2 * (1.0 - _clip(text_features["typo_marker_rate"]))
-    )
-
     first_sentence = sentences[0][2] if sentences else ""
     last_sentence = sentences[-1][2] if sentences else ""
-
-    subject_score = _clip(
-        0.4 * _clip(subject_features["subject_marketing"])
-        + 0.25 * _clip(subject_features["subject_cta"])
-        + 0.2 * _clip(subject_features["subject_urgency"])
-        + 0.15 * subject_features["subject_title_rate"]
-    )
-
-    opener_score = _clip(
-        0.6 * text_features["opener_phrase"]
-        + 0.4 * (1.0 if first_sentence[:1].isupper() and first_sentence.endswith((".", "!", "?")) else 0.0)
-    )
-
-    closer_score = _clip(
-        0.7 * text_features["closer_phrase"]
-        + 0.3 * (1.0 if last_sentence[:1].isupper() else 0.0)
-    )
-
-    cta_score = _clip(
-        0.7 * _clip(text_features["cta_phrase_rate"] * 2.0)
-        + 0.3 * _clip(subject_features["subject_cta"])
-    )
-
-    body_score = _clip(
-        0.45 * polish
-        + 0.25 * _clip(text_features["marketing_phrase_rate"] * 2.0)
-        + 0.2 * _clip(text_features["connective_rate"] * 2.0)
-        + 0.1 * _clip(text_features["burstiness"])
-    )
-
-    html_score = _clip(
-        0.3 * html_features["template_variable"]
-        + 0.25 * html_features["suspicious_comment"]
-        + 0.15 * html_features["deep_nesting"]
-        + 0.15 * html_features["duplicated_styles"]
-        + 0.15 * html_features["empty_cell"]
-    )
-
-    image_score = _clip(
-        ocr_features["ocr_present"]
-        * (0.4 + 0.3 * ocr_features["ocr_capitalization_rate"] + 0.3 * _clip(ocr_features["ocr_marketing_rate"] + ocr_features["ocr_cta_rate"]))
-    )
-
     return {
-        "subject": subject_score,
-        "opener": opener_score,
-        "body": body_score,
-        "cta": cta_score,
-        "closer": closer_score,
-        "html_template": html_score,
-        "image": image_score,
+        "subject": _subject_score(subject_features),
+        "opener": _opener_score(text_features, first_sentence),
+        "body": _body_score(text_features),
+        "cta": _cta_score(text_features, subject_features),
+        "closer": _closer_score(text_features, last_sentence),
+        "html_template": _html_template_score(html_features),
+        "image": _image_score(ocr_features),
     }
 
 
@@ -176,6 +198,12 @@ def extract_features(
     html: str = "",
     ocr_text: str = "",
 ) -> EmailFeatures:
+    obfuscation_features = extract_obfuscation_features(text=text, subject=subject, html=html)
+
+    text = normalize_text(text)
+    subject = normalize_text(subject)
+    ocr_text = normalize_text(ocr_text)
+
     if not text and html:
         text = strip_tags(html)
 
@@ -192,11 +220,13 @@ def extract_features(
     vector.update({"html_%s" % name: value for name, value in html_features.items()})
     vector.update(edge_features)
     vector.update(ocr_features)
+    vector.update(obfuscation_features)
 
     categories = _category_scores(subject_features, text_features, html_features, ocr_features, sentences)
 
     evidence = html_evidence(html)
     evidence["sentences"] = [sentence for _, _, sentence in sentences[:10]]
+    evidence.update(obfuscation_evidence(text=text, subject=subject, html=html))
 
     return EmailFeatures(vector=vector, categories=categories, evidence=evidence)
 
@@ -219,7 +249,8 @@ def extract_segment_features(sentence: str, index: int, total: int) -> Dict[str,
 
 
 def iter_segments(text: str):
-    sentences = split_sentences(text or "")
+    text = normalize_text(text)
+    sentences = split_sentences(text)
     total = len(sentences)
     for index, (start, end, sentence) in enumerate(sentences):
         yield {

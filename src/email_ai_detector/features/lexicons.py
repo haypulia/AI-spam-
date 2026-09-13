@@ -172,3 +172,20 @@ SUSPICIOUS_COMMENT_MARKERS = (
     "chatgpt",
     "as an ai",
 )
+
+FUNCTION_WORDS = (
+    "the", "a", "an", "and", "or", "but", "if", "of", "to", "in", "on", "for", "with", "from",
+    "by", "at", "as", "that", "this", "these", "those", "is", "are", "was", "were", "be", "been",
+    "will", "would", "can", "could", "should", "have", "has", "had", "not", "no", "your", "you",
+    "we", "our", "it", "its",
+    "и", "или", "но", "если", "что", "чтобы", "как", "в", "во", "на", "по", "для", "с", "со",
+    "от", "до", "из", "за", "при", "об", "о", "у", "к", "же", "бы", "не", "ни", "это", "этот",
+    "вы", "ваш", "ваша", "ваше", "ваши", "мы", "наш", "наша", "они",
+)
+
+IMPERATIVE_OPENINGS = (
+    "click", "confirm", "verify", "pay", "claim", "restore", "check", "review", "update",
+    "download", "activate", "register", "call", "reply", "visit", "order",
+    "нажмите", "подтвердите", "оплатите", "проверьте", "обновите", "скачайте", "активируйте",
+    "перейдите", "заберите", "откройте", "свяжитесь", "ответьте", "закажите",
+)

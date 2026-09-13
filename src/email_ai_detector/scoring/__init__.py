@@ -1,6 +1,15 @@
 from typing import Optional
 
-from .base import AI_THRESHOLD, MIXED_THRESHOLD, ScoreResult, Scorer, Segment, verdict_for_score
+from .base import (
+    AI_THRESHOLD,
+    DEFAULT_THRESHOLDS,
+    MIXED_THRESHOLD,
+    ScoreResult,
+    Scorer,
+    Segment,
+    VerdictThresholds,
+    verdict_for_score,
+)
 from .engine import analyze_chunk_vector, analyze_email_vector
 from .ensemble import EnsembleScorer
 from .heuristic import HeuristicScorer
@@ -29,7 +38,9 @@ def build_scorer(name: str, settings, model: Optional[str] = None) -> Scorer:
 
 __all__ = [
     "AI_THRESHOLD",
+    "DEFAULT_THRESHOLDS",
     "MIXED_THRESHOLD",
+    "VerdictThresholds",
     "ScoreResult",
     "Scorer",
     "Segment",
