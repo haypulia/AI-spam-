@@ -10,6 +10,14 @@ from .base import (
     VerdictThresholds,
     verdict_for_score,
 )
+from .analysis import EmailAnalysis
+from .artifacts import (
+    ATTACHMENT_KIND,
+    IMAGE_KIND,
+    ArtifactAnalyzer,
+    ArtifactRegistry,
+    ArtifactResult,
+)
 from .engine import analyze_chunk_vector, analyze_email_vector
 from .ensemble import EnsembleScorer
 from .heuristic import HeuristicScorer
@@ -41,6 +49,12 @@ __all__ = [
     "DEFAULT_THRESHOLDS",
     "MIXED_THRESHOLD",
     "VerdictThresholds",
+    "ATTACHMENT_KIND",
+    "IMAGE_KIND",
+    "ArtifactAnalyzer",
+    "ArtifactRegistry",
+    "ArtifactResult",
+    "EmailAnalysis",
     "ScoreResult",
     "Scorer",
     "Segment",

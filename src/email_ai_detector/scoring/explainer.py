@@ -14,7 +14,6 @@ CATEGORY_FEATURE_PREFIXES: Dict[str, Tuple[str, ...]] = {
     "cta": ("body_cta_phrase_rate", "body_url_rate", "body_urgency_rate", "subject_cta", "subject_urgency"),
     "closer": ("closer_", "body_closer_phrase", "body_sentence_capitalization_rate"),
     "html_template": ("html_",),
-    "image": ("ocr_",),
 }
 
 
@@ -69,7 +68,7 @@ def build_category_dataset(records: Sequence, category: str) -> Tuple[List[List[
     labels: List[int] = []
     for record in records:
         features = extract_features(
-            text=record.text, subject=record.subject, html=record.html, ocr_text=record.ocr_text
+            text=record.text, subject=record.subject, html=record.html
         )
         matrix.append([features.vector.get(name, 0.0) for name in names])
         reference = {normalize_category(str(item).strip().lower()) for item in record.ai_elements}

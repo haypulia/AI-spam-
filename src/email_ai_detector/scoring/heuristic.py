@@ -35,7 +35,6 @@ FALLBACK_CATEGORY_WEIGHTS = {
     "cta": 0.10,
     "opener": 0.10,
     "closer": 0.10,
-    "image": 0.05,
 }
 
 CATEGORY_LABELS = {
@@ -45,7 +44,6 @@ CATEGORY_LABELS = {
     "cta": "призыв к действию собран из типовых конструкций",
     "closer": "подпись и завершающая формула воспроизводят стандартный шаблон",
     "html_template": "в разметке присутствуют признаки шаблонной генерации",
-    "image": "текст на изображении повторяет генеративные речевые обороты",
 }
 
 FEATURE_LABELS = {
@@ -66,7 +64,6 @@ FEATURE_LABELS = {
     "html_empty_cell": "пустые ячейки таблиц",
     "subject_marketing": "маркетинговые клише в теме",
     "subject_cta": "призыв к действию в теме",
-    "ocr_present": "текстовый слой изображения",
 }
 
 
@@ -77,7 +74,6 @@ SIGNAL_FEATURES = (
     "body_burstiness",
     "html_template_variable",
     "html_suspicious_comment",
-    "ocr_present",
     "obfuscation_intraword_invisible",
     "obfuscation_mixed_script_rate",
     "obfuscation_inner_capital_rate",
@@ -230,9 +226,8 @@ class HeuristicScorer(Scorer):
         text: str = "",
         subject: str = "",
         html: str = "",
-        ocr_text: str = "",
     ) -> ScoreResult:
-        features = extract_features(text=text, subject=subject, html=html, ocr_text=ocr_text)
+        features = extract_features(text=text, subject=subject, html=html)
         score = self._document_score(features)
         categories = self._categories(features)
         segments = self.score_segments(text or "")

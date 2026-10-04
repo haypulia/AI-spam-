@@ -32,16 +32,7 @@ EDGE_FEATURE_NAMES = (
     "closer_typo",
 )
 
-OCR_FEATURE_NAMES = (
-    "ocr_present",
-    "ocr_len_log",
-    "ocr_marketing_rate",
-    "ocr_cta_rate",
-    "ocr_capitalization_rate",
-    "ocr_typo_rate",
-)
-
-EXPLANATION_CATEGORIES = ("subject", "opener", "body", "cta", "closer", "html_template", "image")
+EXPLANATION_CATEGORIES = ("subject", "opener", "body", "cta", "closer", "html_template")
 
 CATEGORY_ALIASES = {"ai_cta": "cta", "cta": "cta", "html": "html_template"}
 
@@ -50,7 +41,6 @@ FEATURE_NAMES: Tuple[str, ...] = (
     + tuple("body_%s" % name for name in TEXT_FEATURE_NAMES)
     + tuple("html_%s" % name for name in HTML_FEATURE_NAMES)
     + EDGE_FEATURE_NAMES
-    + OCR_FEATURE_NAMES
     + OBFUSCATION_FEATURE_NAMES
 )
 
@@ -68,21 +58,6 @@ class EmailFeatures:
 
 def _clip(value: float) -> float:
     return max(0.0, min(1.0, value))
-
-
-def _ocr_features(ocr_text: str) -> Dict[str, float]:
-    ocr_text = (ocr_text or "").strip()
-    if not ocr_text:
-        return {name: 0.0 for name in OCR_FEATURE_NAMES}
-    text_features = extract_text_features(ocr_text)
-    return {
-        "ocr_present": 1.0,
-        "ocr_len_log": math.log1p(len(ocr_text)),
-        "ocr_marketing_rate": text_features["marketing_phrase_rate"],
-        "ocr_cta_rate": text_features["cta_phrase_rate"],
-        "ocr_capitalization_rate": text_features["sentence_capitalization_rate"],
-        "ocr_typo_rate": text_features["typo_marker_rate"],
-    }
 
 
 def _edge_features(sentences: Sequence[Tuple[int, int, str]]) -> Dict[str, float]:
@@ -165,18 +140,10 @@ def _html_template_score(html_features: Dict[str, float]) -> float:
     )
 
 
-def _image_score(ocr_features: Dict[str, float]) -> float:
-    return _clip(
-        ocr_features["ocr_present"]
-        * (0.4 + 0.3 * ocr_features["ocr_capitalization_rate"] + 0.3 * _clip(ocr_features["ocr_marketing_rate"] + ocr_features["ocr_cta_rate"]))
-    )
-
-
 def _category_scores(
     subject_features: Dict[str, float],
     text_features: Dict[str, float],
     html_features: Dict[str, float],
-    ocr_features: Dict[str, float],
     sentences: Sequence[Tuple[int, int, str]],
 ) -> Dict[str, float]:
     first_sentence = sentences[0][2] if sentences else ""
@@ -188,7 +155,6 @@ def _category_scores(
         "cta": _cta_score(text_features, subject_features),
         "closer": _closer_score(text_features, last_sentence),
         "html_template": _html_template_score(html_features),
-        "image": _image_score(ocr_features),
     }
 
 
@@ -196,13 +162,11 @@ def extract_features(
     text: str = "",
     subject: str = "",
     html: str = "",
-    ocr_text: str = "",
 ) -> EmailFeatures:
     obfuscation_features = extract_obfuscation_features(text=text, subject=subject, html=html)
 
     text = normalize_text(text)
     subject = normalize_text(subject)
-    ocr_text = normalize_text(ocr_text)
 
     if not text and html:
         text = strip_tags(html)
@@ -210,7 +174,6 @@ def extract_features(
     subject_features = extract_subject_features(subject)
     text_features = extract_text_features(text)
     html_features = extract_html_features(html)
-    ocr_features = _ocr_features(ocr_text)
     sentences = split_sentences(text)
     edge_features = _edge_features(sentences)
 
@@ -219,10 +182,9 @@ def extract_features(
     vector.update({"body_%s" % name: value for name, value in text_features.items()})
     vector.update({"html_%s" % name: value for name, value in html_features.items()})
     vector.update(edge_features)
-    vector.update(ocr_features)
     vector.update(obfuscation_features)
 
-    categories = _category_scores(subject_features, text_features, html_features, ocr_features, sentences)
+    categories = _category_scores(subject_features, text_features, html_features, sentences)
 
     evidence = html_evidence(html)
     evidence["sentences"] = [sentence for _, _, sentence in sentences[:10]]

@@ -33,12 +33,6 @@ class EmailRecord:
     eml_path: Optional[str] = None
 
     @property
-    def ocr_text(self) -> str:
-        if not self.image:
-            return ""
-        return self.image.get("ocr_text", "") or ""
-
-    @property
     def is_mixed(self) -> bool:
         return self.label == "mixed"
 

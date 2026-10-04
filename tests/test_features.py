@@ -35,7 +35,6 @@ def test_categories_within_unit_range():
         text="Dear Alex, we are pleased to inform you.\n\nClaim now: https://example.org\n\nBest regards, Team",
         subject="Exclusive opportunity",
         html="<p>text</p>",
-        ocr_text="CLAIM NOW",
     )
-    assert set(features.categories) >= {"subject", "opener", "body", "cta", "closer", "html_template", "image"}
+    assert set(features.categories) == {"subject", "opener", "body", "cta", "closer", "html_template"}
     assert all(0.0 <= value <= 1.0 for value in features.categories.values())

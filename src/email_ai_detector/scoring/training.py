@@ -18,7 +18,6 @@ VOLUME_FEATURES = (
     "html_missing_alt",
     "opener_len_log",
     "closer_len_log",
-    "ocr_len_log",
     "segment_char_len_log",
     "segment_word_count_log",
 )
@@ -32,7 +31,6 @@ def build_document_dataset(records: Sequence) -> Tuple[List[List[float]], List[i
             text=record.text,
             subject=record.subject,
             html=record.html,
-            ocr_text=record.ocr_text,
         )
         matrix.append(features.as_list(FEATURE_NAMES))
         labels.append(int(record.ai_binary))

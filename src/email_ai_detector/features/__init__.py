@@ -9,6 +9,7 @@ from .extractor import (
     normalize_category,
 )
 from .html_signals import extract_html_features, html_evidence, strip_tags
+from .image_signals import IMAGE_FEATURE_NAMES, extract_image_features, image_metadata
 from .text_signals import extract_subject_features, extract_text_features, split_sentences
 
 __all__ = [
@@ -23,6 +24,9 @@ __all__ = [
     "extract_html_features",
     "html_evidence",
     "strip_tags",
+    "IMAGE_FEATURE_NAMES",
+    "extract_image_features",
+    "image_metadata",
     "extract_subject_features",
     "extract_text_features",
     "split_sentences",

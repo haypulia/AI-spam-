@@ -90,38 +90,12 @@ def analyze_chunk_vector(chunk_data: dict, weights: Optional[Dict[str, float]] =
     }
 
 
-def analyze_email_vector(html_score, ocr_score=0.0, has_ocr: bool = False) -> dict:
-    html_score = normalize_score(html_score)
-    ocr_score = normalize_score(ocr_score)
-
-    if not has_ocr:
-        html_weight, ocr_weight = 1.0, 0.0
-    elif html_score < 0.30:
-        html_weight, ocr_weight = 0.30, 0.70
-    else:
-        html_weight, ocr_weight = 0.50, 0.50
-
-    final_score = max(0.0, min(1.0, html_score * html_weight + ocr_score * ocr_weight))
-
+def analyze_email_vector(score) -> dict:
+    final_score = normalize_score(score)
     return {
         "AI_Score": round(final_score, 3),
         "AI_Score_Percent": round(final_score * 100, 1),
         "Verdict": verdict_for_score(final_score),
-        "Signals": {
-            "html_score": round(html_score, 3),
-            "ocr_score": round(ocr_score, 3),
-            "html_weight": html_weight,
-            "ocr_weight": ocr_weight,
-            "has_ocr": has_ocr,
-        },
-        "Explanation": (
-            "Индекс AI-генерации: %s/100. HTML: %s/100. OCR: %s/100. Веса: HTML %.0f%%, OCR %.0f%%."
-            % (
-                round(final_score * 100, 1),
-                round(html_score * 100, 1),
-                round(ocr_score * 100, 1),
-                html_weight * 100,
-                ocr_weight * 100,
-            )
-        ),
+        "Signals": {"score": round(final_score, 3)},
+        "Explanation": "Индекс AI-генерации: %s/100." % round(final_score * 100, 1),
     }

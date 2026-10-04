@@ -57,7 +57,6 @@ class Settings:
     request_delay: float = 2.0
     max_html_length: int = 25000
     max_block_length: int = 10000
-    ocr_languages: str = "rus+eng"
     verdict_mixed_threshold: float = 0.30
     verdict_ai_threshold: float = 0.60
     raw_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "data" / "raw" / "drweb")
@@ -108,7 +107,6 @@ def get_settings(env_file: Optional[str] = None) -> Settings:
         request_delay=_env_float("LLM_REQUEST_DELAY", 2.0),
         max_html_length=_env_int("MAX_HTML_LENGTH", 25000),
         max_block_length=_env_int("MAX_BLOCK_LENGTH", 10000),
-        ocr_languages=os.getenv("OCR_LANGUAGES", "rus+eng"),
         verdict_mixed_threshold=_env_float("VERDICT_MIXED_THRESHOLD", 0.30),
         verdict_ai_threshold=_env_float("VERDICT_AI_THRESHOLD", 0.60),
         raw_dir=_env_path("DRWEB_DATA_DIR", "data/raw/drweb", root),
