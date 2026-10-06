@@ -81,6 +81,39 @@ def render_markdown(report: Dict[str, object], roc_image: Optional[str] = None) 
         )
     )
 
+    interval_rows = []
+    metric_labels = {"precision": "Precision", "recall": "Recall", "f1": "F1"}
+    for key, title in (("at_decision_threshold", "decision threshold"), ("at_operating_threshold", "operating threshold")):
+        payload = detection[key]
+        for name, interval in payload.get("ci95", {}).get("metrics", {}).items():
+            interval_rows.append([
+                title, _format_number(payload["threshold"], 3), metric_labels[name],
+                _format_number(payload[name]),
+                "%s - %s" % (_format_number(interval["low"]), _format_number(interval["high"])),
+                str(interval["iterations"]),
+            ])
+    if interval_rows:
+        lines.append("### 95% confidence intervals at fixed thresholds")
+        lines.append("")
+        lines.extend(_table(["Mode", "Threshold", "Metric", "Value", "95% CI", "Bootstrap iterations"], interval_rows))
+
+    false_positives = detection.get("false_positives_legitimate")
+    if false_positives:
+        lines.append("### False positives on legitimate human-written emails")
+        lines.append("")
+        group_labels = {
+            "all_legitimate_human": "All legitimate human-written emails",
+            "corporate_notice": "Corporate notices",
+            "marketing_legit": "Legitimate marketing emails",
+        }
+        rows = []
+        for name, payload in false_positives["groups"].items():
+            interval = payload["ci95"]
+            rows.append([group_labels[name], str(payload["count"]), str(payload["false_positives"]),
+                         _format_number(payload["false_positive_rate"]),
+                         "%s - %s" % (_format_number(interval["low"]), _format_number(interval["high"]))])
+        lines.extend(_table(["Group", "N", "FP", "FPR", "95% CI"], rows))
+
     if roc_image:
         lines.append("![ROC](%s)" % roc_image)
         lines.append("")

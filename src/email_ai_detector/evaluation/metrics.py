@@ -1,5 +1,6 @@
 import math
 import random
+from statistics import NormalDist
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 
@@ -163,6 +164,51 @@ def bootstrap_ci(
     low_index = int(alpha / 2 * len(samples))
     high_index = min(len(samples) - 1, int((1 - alpha / 2) * len(samples)))
     return {"low": samples[low_index], "high": samples[high_index], "iterations": len(samples)}
+
+
+def threshold_confidence_intervals(
+    labels: Sequence[int], scores: Sequence[float], threshold: float,
+    iterations: int = 1000, seed: int = 42,
+) -> Dict[str, object]:
+    if len(labels) != len(scores):
+        raise ValueError("labels and scores must have equal lengths")
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
+
+    intervals = {}
+    for name in ("precision", "recall", "f1"):
+        def metric(sample_labels, sample_scores, metric_name=name):
+            values = threshold_metrics(sample_labels, sample_scores, threshold)
+            denominators = {
+                "precision": values["tp"] + values["fp"],
+                "recall": values["tp"] + values["fn"],
+                "f1": 2 * values["tp"] + values["fp"] + values["fn"],
+            }
+            return values[metric_name] if denominators[metric_name] else float("nan")
+
+        interval = bootstrap_ci(labels, scores, metric=metric, iterations=iterations, seed=seed)
+        intervals[name] = {
+            "low": interval["low"] if math.isfinite(interval["low"]) else None,
+            "high": interval["high"] if math.isfinite(interval["high"]) else None,
+            "iterations": interval["iterations"],
+        }
+    return {
+        "method": "paired_percentile_bootstrap", "confidence": 0.95,
+        "seed": seed, "requested_iterations": iterations, "metrics": intervals,
+    }
+
+
+def binomial_wilson_ci(successes: int, total: int) -> Dict[str, Optional[float]]:
+    if total < 0 or successes < 0 or successes > total:
+        raise ValueError("require 0 <= successes <= total")
+    if total == 0:
+        return {"low": None, "high": None}
+    z = NormalDist().inv_cdf(0.975)
+    rate = successes / total
+    denominator = 1 + z * z / total
+    center = (rate + z * z / (2 * total)) / denominator
+    radius = z * math.sqrt(rate * (1 - rate) / total + z * z / (4 * total * total)) / denominator
+    return {"low": max(0.0, center - radius), "high": min(1.0, center + radius)}
 
 
 def spearman_correlation(first: Sequence[float], second: Sequence[float]) -> float:

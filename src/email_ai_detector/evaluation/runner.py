@@ -12,9 +12,11 @@ from .metrics import (
     best_threshold,
     bootstrap_ci,
     brier_score,
+    binomial_wilson_ci,
     roc_auc_score,
     roc_curve,
     threshold_metrics,
+    threshold_confidence_intervals,
 )
 from .partial import evaluate_partial, segment_threshold_sweep
 
@@ -84,6 +86,28 @@ def _detection_rate_by_label(records: Sequence, scores: Sequence[float], thresho
     }
 
 
+def evaluate_false_positives(records: Sequence, scores: Sequence[float], threshold: float) -> Dict[str, object]:
+    if len(records) != len(scores):
+        raise ValueError("records and scores must have equal lengths")
+    groups = {"all_legitimate_human": [], "corporate_notice": [], "marketing_legit": []}
+    for record, score in zip(records, scores):
+        if record.ai_binary == 0 and record.is_spam == 0:
+            groups["all_legitimate_human"].append(score)
+            if record.data_type in groups and record.data_type != "all_legitimate_human":
+                groups[record.data_type].append(score)
+    report = {}
+    for name, values in groups.items():
+        count = len(values)
+        false_positives = sum(score >= threshold for score in values)
+        report[name] = {
+            "count": count, "false_positives": false_positives,
+            "false_positive_rate": false_positives / count if count else None,
+            "ci95": binomial_wilson_ci(false_positives, count),
+            "status": "available" if count else "no_data",
+        }
+    return {"threshold": threshold, "ci_method": "wilson", "confidence": 0.95, "groups": report}
+
+
 def evaluate_detection(records: Sequence, results: Sequence, threshold: float = 0.5) -> Dict[str, object]:
     labels = [record.ai_binary for record in records]
     scores = [result.score for result in results]
@@ -105,6 +129,10 @@ def evaluate_detection(records: Sequence, results: Sequence, threshold: float = 
         "by_data_type": _group_auc(records, scores, lambda record: record.data_type),
         "by_origin": _group_auc_vs_human(records, scores, lambda record: record.ai_origin),
     }
+    for key in ("at_decision_threshold", "at_operating_threshold"):
+        payload = report[key]
+        payload["ci95"] = threshold_confidence_intervals(labels, scores, payload["threshold"])
+    report["false_positives_legitimate"] = evaluate_false_positives(records, scores, threshold)
     return report
 
 
