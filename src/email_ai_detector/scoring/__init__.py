@@ -1,5 +1,12 @@
 from typing import Optional
 
+from .explainer import (
+    CategoryExplainer,
+    SOCAnalysisReport,
+    SOCZoneExplanation,
+    explain_for_soc,
+)
+
 from .base import (
     AI_THRESHOLD,
     DEFAULT_THRESHOLDS,
@@ -67,6 +74,9 @@ __all__ = [
     "train_linear_model",
     "build_scorer",
     "SCORER_NAMES",
+    "SOCAnalysisReport",
+    "SOCZoneExplanation",
+    "explain_for_soc",
 ]
 
 from .training import build_document_dataset, build_segment_dataset, train_document_model, train_segment_model
