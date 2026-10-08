@@ -1,4 +1,5 @@
 from email.message import EmailMessage
+import json
 
 from email_ai_detector.data.eml import load_email_from_bytes
 from email_ai_detector.pipeline.analyze import EmailAnalyzer, summarize
@@ -32,3 +33,27 @@ def test_analyzer_produces_report(tmp_path):
     assert "ai_score" in reports[0]["analysis"]
     assert (tmp_path / "all.json").exists()
     assert summarize(reports)["count"] == 1
+
+
+def test_empty_directory_saves_empty_json(tmp_path):
+    output = tmp_path / "all.json"
+    output.write_text('["old report"]', encoding="utf-8")
+    analyzer = EmailAnalyzer(scorer=HeuristicScorer(), summary_path=output)
+    assert analyzer.analyze_directory(tmp_path) == []
+    assert json.loads(output.read_text(encoding="utf-8")) == []
+
+
+def test_batch_preserves_reports_with_same_filename(tmp_path):
+    for name in ("first", "second"):
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "sample.eml").write_bytes(build_message())
+    results = tmp_path / "results"
+    summary = tmp_path / "all.json"
+    analyzer = EmailAnalyzer(scorer=HeuristicScorer(), results_dir=results, summary_path=summary)
+    reports = analyzer.analyze_directory(tmp_path)
+    assert len(reports) == 2
+    assert len(json.loads(summary.read_text(encoding="utf-8"))) == 2
+    for name in ("first", "second"):
+        report = json.loads((results / name / "sample.json").read_text(encoding="utf-8"))
+        assert report["path"] == str(tmp_path / name / "sample.eml")

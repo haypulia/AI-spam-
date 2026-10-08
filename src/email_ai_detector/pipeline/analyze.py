@@ -55,13 +55,13 @@ class EmailAnalyzer:
         limit: Optional[int] = None,
         save_individual: bool = True,
     ) -> List[Dict[str, object]]:
+        directory = Path(directory)
         files = list(iter_eml_files(directory, patterns))
         if limit:
             files = files[:limit]
 
         if not files:
             logger.warning("в каталоге %s нет писем", directory)
-            return []
 
         reports: List[Dict[str, object]] = []
         for index, path in enumerate(files, start=1):
@@ -71,8 +71,10 @@ class EmailAnalyzer:
                 continue
             reports.append(report)
             if save_individual and self.results_dir:
-                ensure_dir(self.results_dir)
-                save_json(report, self.results_dir / ("%s.json" % path.stem))
+                relative_path = path.relative_to(directory)
+                output_path = self.results_dir / relative_path.with_suffix(".json")
+                ensure_dir(output_path.parent)
+                save_json(report, output_path)
 
         if self.summary_path:
             save_json(reports, self.summary_path)
