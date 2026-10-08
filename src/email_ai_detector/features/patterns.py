@@ -62,3 +62,18 @@ SECTION_BLOCK_PATTERN = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 LIST_BLOCK_PATTERN = re.compile(r"(<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>)", re.DOTALL | re.IGNORECASE)
+
+# Разделители подписи RFC 3676 + визуальные разделители
+SIGNATURE_DELIMETER_PATTERN = re.compile(r"(?m)^(?:\s*--\s*$|\s*_{3,}\s*$|\s*-{3,}\s*$)") 
+# Поиск интерактивных CTA-элементов в HTML (кнопки, стилизованные ссылки)
+HTML_CTA_TAG_PATTERN = re.compile(
+r"<(?:a|button)\b[^>]*?(?:class=[\"'][^\"']*(?:btn|button|cta|action)[^\"']*[\"']|style=[\"'][^\"']*(?:background|display:\s*inline-block|padding)[^\"']*[\"'])[^>]*>(.*?)</(?:a|button)>",
+re.IGNORECASE | re.DOTALL,)
+
+# Анкоры ссылок
+HTML_ANCHOR_TEXT_PATTERN = re.compile(
+    r"<a\b[^>]*>(.*?)</a>", re.IGNORECASE | re.DOTALL,
+)
+
+# Очистка HTML - тегов внутри извлечённых фрагментов
+STRIP_TAGS_PATTERN = re.compile(r"<[^>]+>")

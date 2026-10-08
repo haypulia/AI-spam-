@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .html_signals import HTML_FEATURE_NAMES, extract_html_features, html_evidence, strip_tags
-from .lexicons import CLOSERS, OPENERS
+from .lexicons import CLOSERS, OPENERS, CALL_TO_ACTION, URGENCY
 from .normalize import normalize_text
 from .obfuscation import (
     OBFUSCATION_FEATURE_NAMES,
@@ -34,7 +34,8 @@ EDGE_FEATURE_NAMES = (
 
 EXPLANATION_CATEGORIES = ("subject", "opener", "body", "cta", "closer", "html_template")
 
-CATEGORY_ALIASES = {"ai_cta": "cta", "cta": "cta", "html": "html_template"}
+CATEGORY_ALIASES = {"ai_cta": "cta", "cta": "cta", "html": "html_template",
+                    "signature" : "closer", "signoff": "closer",}
 
 FEATURE_NAMES: Tuple[str, ...] = (
     tuple("subject_%s" % name.replace("subject_", "") for name in SUBJECT_FEATURE_NAMES)
@@ -108,16 +109,21 @@ def _opener_score(text_features: Dict[str, float], first_sentence: str) -> float
 
 
 def _closer_score(text_features: Dict[str, float], last_sentence: str) -> float:
+    has_polite_closer = text_features.get("closer_phrase", 0.0)
+    terminated = 1.0 if last_sentence.endswith((".", "!", "?")) else 0.0
+    capitalized = 1.0 if last_sentence[:1].isupper() else 0.0
     return _clip(
-        0.7 * text_features["closer_phrase"]
-        + 0.3 * (1.0 if last_sentence[:1].isupper() else 0.0)
+        0.5 * has_polite_closer + 0.3 * (1.0 if (capitalized and terminated) else 0.0)
+        + 0.2 * (1.0 - _clip(text_features.get("typo_marker_rate", 0.0)))
     )
 
 
 def _cta_score(text_features: Dict[str, float], subject_features: Dict[str, float]) -> float:
     return _clip(
-        0.7 * _clip(text_features["cta_phrase_rate"] * 2.0)
-        + 0.3 * _clip(subject_features["subject_cta"])
+        0.45 * _clip(text_features.get("cta_phrase_rate", 0.0) * 2.0)
+        + 0.25 * _clip(text_features.get("imperative_opening_rate", 0.0) * 1.5)
+        + 0.15 * _clip(text_features.get("urgency_rate", 0.0) * 1.5)
+        + 0.15 * _clip(subject_features.get("subject_cta", 0.0))
     )
 
 
@@ -189,6 +195,27 @@ def extract_features(
     evidence = html_evidence(html)
     evidence["sentences"] = [sentence for _, _, sentence in sentences[:10]]
     evidence.update(obfuscation_evidence(text=text, subject=subject, html=html))
+
+    cta_sentences = [
+        s for _, _, s in sentences 
+        if any(p in s.lower() for p in CALL_TO_ACTION) 
+        or any(u in s.lower() for u in URGENCY)
+    ]
+
+    closer_snippet = ""
+    if sentences:
+        tail_sentences = sentences[max(0, len(sentences) - 4):]
+        for idx_tail, (_, _, sent) in enumerate(tail_sentences):
+            if any(phrase in sent.lower() for phrase in CLOSERS):
+                #  Формула вежливости + все последующие строки подписи
+                closer_snippet = " \n ".join(s[2] for s in tail_sentences[idx_tail:])
+                break
+
+        if not closer_snippet and edge_features.get("closer_signoff"):
+            closer_snippet = sentences[-1][2]
+
+    evidence["cta_snippets"] = cta_sentences[:3]
+    evidence["closer_snippet"] = closer_snippet
 
     return EmailFeatures(vector=vector, categories=categories, evidence=evidence)
 
