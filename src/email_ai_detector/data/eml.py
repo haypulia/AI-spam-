@@ -5,11 +5,11 @@ from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 PathLike = Union[str, Path]
 
-DATA_URI_PATTERN = re.compile(r"data:image/[^;]+;base64,([A-Za-z0-9+/=\s]+)", re.IGNORECASE)
+DATA_URI_PATTERN = re.compile(r"data:(image/[^;]+);base64,([A-Za-z0-9+/=\s]+)", re.IGNORECASE)
 
 HEADER_FIELDS = ("From", "To", "Subject", "Date", "Reply-To", "Return-Path", "X-Mailer", "Message-ID")
 logger = logging.getLogger(__name__)
@@ -65,12 +65,12 @@ def _part_content(part) -> str:
         return payload.decode(charset, errors="ignore")
 
 
-def extract_data_uri_images(html: str) -> List[bytes]:
+def extract_data_uri_images(html: str) -> List[Tuple[str, bytes]]:
     images = []
     for match in DATA_URI_PATTERN.finditer(html or ""):
         try:
-            encoded = re.sub(r"\s+", "", match.group(1))
-            images.append(base64.b64decode(encoded))
+            encoded = re.sub(r"\s+", "", match.group(2))
+            images.append((match.group(1).lower(), base64.b64decode(encoded)))
         except Exception:
             continue
     return images
@@ -93,12 +93,22 @@ def extract_images(message, html: str = "") -> List[dict]:
             {
                 "source": part.get_filename() or content_id or content_type,
                 "bytes": payload,
+                "content_type": content_type,
                 "content_id": content_id,
+                "inline": bool(content_id),
             }
         )
 
-    for index, payload in enumerate(extract_data_uri_images(html)):
-        images.append({"source": "data_uri_%d" % index, "bytes": payload, "content_id": None})
+    for index, (content_type, payload) in enumerate(extract_data_uri_images(html)):
+        images.append(
+            {
+                "source": "data_uri_%d" % index,
+                "bytes": payload,
+                "content_type": content_type,
+                "content_id": None,
+                "inline": True,
+            }
+        )
 
     return images
 

@@ -11,8 +11,14 @@ from .evaluation.calibration import calibrate, load_calibration, save_calibratio
 from .evaluation.report import save_markdown
 from .evaluation.runner import plot_roc_curve, run_evaluation, save_report
 from .pipeline.analyze import EmailAnalyzer, summarize
-from .scoring import build_scorer
-from .scoring.training import train_document_model, train_explainer, train_segment_model
+from .scoring import ImageAnalyzer, build_scorer
+from .scoring.artifacts import ArtifactRegistry
+from .scoring.training import (
+    train_document_model,
+    train_explainer,
+    train_image_model,
+    train_segment_model,
+)
 from .utils import save_json
 
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(message)s"
@@ -58,6 +64,13 @@ def command_train(args, settings) -> int:
     explainer_path = explainer.save(settings.models_dir / "category_models.json")
     logging.info("модели зон объяснения сохранены: %s", explainer_path)
 
+    image_model = train_image_model(split.records, root, metadata=dict(metadata))
+    if image_model is None:
+        logging.info("модель изображений не обучена: в выборке нет размеченных картинок")
+    else:
+        image_path = image_model.save(settings.models_dir / "image_model.json")
+        logging.info("модель изображений сохранена: %s, картинок %d", image_path, image_model.metadata["samples"])
+
     if not args.skip_calibration:
         calibration_split = load_split(root, args.calibration_split)
         scorer = build_scorer("heuristic", settings)
@@ -80,6 +93,7 @@ def command_analyze(args, settings) -> int:
     scorer = build_scorer(args.scorer, settings, model=args.model)
     analyzer = EmailAnalyzer(
         scorer=scorer,
+        registry=ArtifactRegistry([ImageAnalyzer.from_settings(settings)]),
         results_dir=args.results_dir or settings.analysis_results_dir,
         summary_path=args.output or settings.full_analysis_path,
     )
@@ -143,15 +157,18 @@ def command_evaluate(args, settings) -> int:
 
 def command_score(args, settings) -> int:
     scorer = build_scorer(args.scorer, settings, model=args.model)
-    analyzer = EmailAnalyzer(scorer=scorer)
+    analyzer = EmailAnalyzer(scorer=scorer, registry=ArtifactRegistry([ImageAnalyzer.from_settings(settings)]))
     report = analyzer.analyze_file(args.path)
     if report is None:
         logging.error("не удалось разобрать письмо: %s", args.path)
         return 1
     if args.output:
         save_json(report, args.output)
-    print(report["analysis"]["ai_score_percent"], report["analysis"]["verdict"])
-    print(report["analysis"]["explanation"])
+    text = report["analysis"]["text"]
+    print("текст: %s%% — %s" % (text["ai_score_percent"], text["verdict"]))
+    print(text["explanation"])
+    for image in report["analysis"]["images"]:
+        print("картинка %s: %s%% — %s" % (image["source"], image["ai_score_percent"], image["verdict"]))
     return 0
 
 

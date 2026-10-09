@@ -1,4 +1,4 @@
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..features import FEATURE_NAMES, SEGMENT_FEATURE_NAMES, extract_features, iter_segments
 from .explainer import CategoryExplainer, train_category_models
@@ -75,3 +75,42 @@ def train_segment_model(records: Sequence, metadata: Dict[str, object] = None) -
 
 def train_explainer(records: Sequence, metadata: Dict[str, object] = None) -> CategoryExplainer:
     return train_category_models(records, metadata=metadata)
+
+def build_image_dataset(records: Sequence, dataset_root) -> Tuple[List[List[float]], List[int]]:
+    from pathlib import Path
+
+    from ..features.image_signals import IMAGE_FEATURE_NAMES, extract_image_features
+
+    root = Path(dataset_root)
+    matrix: List[List[float]] = []
+    labels: List[int] = []
+
+    for record in records:
+        image = record.image or {}
+        relative = image.get("path")
+        if not relative:
+            continue
+        payload_path = root / relative
+        if not payload_path.exists():
+            continue
+        features = extract_image_features(payload_path.read_bytes())
+        if not features.get("image_decoded"):
+            continue
+        matrix.append([features[name] for name in IMAGE_FEATURE_NAMES])
+        labels.append(1 if image.get("ai_generated") else 0)
+
+    return matrix, labels
+
+
+def train_image_model(records: Sequence, dataset_root, metadata: Dict[str, object] = None) -> Optional[LinearModel]:
+    from ..features.image_signals import DIMENSION_FEATURES, IMAGE_FEATURE_NAMES
+
+    matrix, labels = build_image_dataset(records, dataset_root)
+    if len(set(labels)) < 2:
+        return None
+
+    payload = {"kind": "image", "samples": len(labels), "positives": sum(labels)}
+    payload.update(metadata or {})
+    return train_linear_model(
+        matrix, labels, IMAGE_FEATURE_NAMES, metadata=payload, excluded=DIMENSION_FEATURES
+    )

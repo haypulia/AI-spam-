@@ -28,9 +28,16 @@ class EmailAnalysis:
         scores = [item.score for item in self.artifacts]
         return max(scores) if scores else 0.0
 
+    def zones(self) -> dict:
+        zones = {name: round(value, 4) for name, value in self.text.categories.items()}
+        if self.images:
+            zones["image"] = round(max(item.score for item in self.images), 4)
+        return zones
+
     def to_dict(self, category_threshold: float = 0.5) -> dict:
         return {
             "text": self.text.to_dict(category_threshold),
             "images": [item.to_dict() for item in self.images],
             "attachments": [item.to_dict() for item in self.attachments],
+            "zones": self.zones(),
         }

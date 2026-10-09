@@ -28,6 +28,7 @@ from .artifacts import (
 from .engine import analyze_chunk_vector, analyze_email_vector
 from .ensemble import EnsembleScorer
 from .heuristic import HeuristicScorer
+from .image import ImageAnalyzer
 from .model import LinearModel, train_linear_model
 
 SCORER_NAMES = ("heuristic", "llm", "ensemble")
@@ -70,6 +71,7 @@ __all__ = [
     "analyze_email_vector",
     "EnsembleScorer",
     "HeuristicScorer",
+    "ImageAnalyzer",
     "LinearModel",
     "train_linear_model",
     "build_scorer",
@@ -79,11 +81,18 @@ __all__ = [
     "explain_for_soc",
 ]
 
-from .training import build_document_dataset, build_segment_dataset, train_document_model, train_segment_model
+from .training import (
+    build_document_dataset,
+    build_segment_dataset,
+    train_document_model,
+    train_image_model,
+    train_segment_model,
+)
 
 __all__ += [
     "build_document_dataset",
     "build_segment_dataset",
     "train_document_model",
+    "train_image_model",
     "train_segment_model",
 ]

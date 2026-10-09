@@ -1,3 +1,6 @@
+import io
+
+import pytest
 from email.message import EmailMessage
 import json
 from unittest import TestCase
@@ -32,7 +35,9 @@ def test_analyzer_produces_report(tmp_path):
     reports = analyzer.analyze_directory(tmp_path)
 
     assert len(reports) == 1
-    assert "ai_score" in reports[0]["analysis"]
+    assert "ai_score" in reports[0]["analysis"]["text"]
+    assert reports[0]["analysis"]["images"] == []
+    assert reports[0]["analysis"]["attachments"] == []
     assert (tmp_path / "all.json").exists()
     assert summarize(reports)["count"] == 1
 
@@ -111,3 +116,33 @@ def test_batch_continues_after_analysis_error(tmp_path):
 def test_email_without_subject_or_sender_is_valid():
     email = load_email_from_bytes(b"To: recipient@example.org\r\n\r\nValid body")
     assert email.text.strip() == "Valid body"
+
+
+def test_images_get_their_own_verdict(tmp_path):
+    pytest.importorskip("PIL.Image")
+    from PIL import Image
+
+    from email_ai_detector.scoring.artifacts import ArtifactRegistry
+    from email_ai_detector.scoring.image import ImageAnalyzer
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (120, 60), (20, 80, 160)).save(buffer, format="PNG")
+
+    message = EmailMessage()
+    message["Subject"] = "Письмо с картинкой"
+    message["From"] = "sender@example.org"
+    message.set_content("Текст письма.")
+    message.add_attachment(buffer.getvalue(), maintype="image", subtype="png", filename="banner.png")
+
+    path = tmp_path / "with_image.eml"
+    path.write_bytes(message.as_bytes())
+
+    analyzer = EmailAnalyzer(scorer=HeuristicScorer(), registry=ArtifactRegistry([ImageAnalyzer()]))
+    report = analyzer.analyze_file(path)
+
+    images = report["analysis"]["images"]
+    assert len(images) == 1
+    assert images[0]["source"] == "banner.png"
+    assert images[0]["content_type"] == "image/png"
+    assert 0.0 <= images[0]["ai_score"] <= 1.0
+    assert "image" in report["analysis"]["zones"]

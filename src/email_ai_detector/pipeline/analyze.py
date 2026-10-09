@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
 
 from ..data.eml import LoadedEmail, iter_eml_files, load_email_from_file
+from ..scoring.analysis import EmailAnalysis
+from ..scoring.artifacts import ArtifactRegistry
 from ..scoring.base import Scorer
 from ..utils import ensure_dir, get_timestamp, save_json, truncate_text
 
@@ -15,17 +17,21 @@ class EmailAnalyzer:
     def __init__(
         self,
         scorer: Scorer,
+        registry: Optional[ArtifactRegistry] = None,
         results_dir: Optional[PathLike] = None,
         summary_path: Optional[PathLike] = None,
         category_threshold: float = 0.5,
     ):
         self.scorer = scorer
+        self.registry = registry or ArtifactRegistry()
         self.results_dir = Path(results_dir) if results_dir else None
         self.summary_path = Path(summary_path) if summary_path else None
         self.category_threshold = category_threshold
 
     def analyze_email(self, email: LoadedEmail) -> Dict[str, object]:
         result = self.scorer.score_email(text=email.text, subject=email.subject, html=email.html)
+        artifacts = self.registry.analyze_many(email.images) if email.images else []
+        analysis = EmailAnalysis.from_results(result, artifacts)
 
         return {
             "file": Path(email.path).name if email.path else "",
@@ -38,7 +44,7 @@ class EmailAnalyzer:
                 "html_preview": truncate_text(email.html, 500),
                 "images_count": len(email.images),
             },
-            "analysis": result.to_dict(self.category_threshold),
+            "analysis": analysis.to_dict(self.category_threshold),
         }
 
     def analyze_file(self, path: PathLike) -> Optional[Dict[str, object]]:
@@ -91,10 +97,10 @@ class EmailAnalyzer:
 def summarize(reports: Sequence[Dict[str, object]]) -> Dict[str, object]:
     if not reports:
         return {"count": 0}
-    scores = [report["analysis"]["ai_score"] for report in reports]
+    scores = [report["analysis"]["text"]["ai_score"] for report in reports]
     verdicts: Dict[str, int] = {}
     for report in reports:
-        verdict = report["analysis"]["verdict"]
+        verdict = report["analysis"]["text"]["verdict"]
         verdicts[verdict] = verdicts.get(verdict, 0) + 1
     return {
         "count": len(reports),
