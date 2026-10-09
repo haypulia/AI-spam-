@@ -1,0 +1,121 @@
+{
+  "seed": 42,
+  "similarity_threshold": 0.85,
+  "target_ratios": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "input_count": 1371,
+  "output_count": 1152,
+  "groups": 904,
+  "largest_group": 17,
+  "split_sizes": {
+    "train": 787,
+    "validation": 182,
+    "test": 183
+  },
+  "audit": {
+    "count": 1152,
+    "groups": 904,
+    "similar_pairs": 119,
+    "cross_split_groups": 0,
+    "invalid_split_ids": [],
+    "cross_split_examples": [],
+    "split_labels": {
+      "train": {
+        "human": 165,
+        "ai": 304,
+        "mixed": 318
+      },
+      "validation": {
+        "human": 35,
+        "ai": 81,
+        "mixed": 66
+      },
+      "test": {
+        "human": 35,
+        "mixed": 66,
+        "ai": 82
+      }
+    }
+  },
+  "input_file": "data\\datasets\\ai_assisted_spam_dataset.zip",
+  "input_sha256": "27e38af8ec300a19123108b701e4ac73ef9663048b24b7f275ae01c096ecd0f8",
+  "removed_count": 219,
+  "original_audit": {
+    "count": 1371,
+    "groups": 904,
+    "similar_pairs": 593,
+    "cross_split_groups": 42,
+    "invalid_split_ids": [],
+    "cross_split_examples": [
+      [
+        "em_000121",
+        "em_000128",
+        "em_000132"
+      ],
+      [
+        "em_000129",
+        "em_000138"
+      ],
+      [
+        "em_000171",
+        "em_000216"
+      ],
+      [
+        "em_000177",
+        "em_000198"
+      ],
+      [
+        "em_000183",
+        "em_001134",
+        "em_001135",
+        "em_001136",
+        "em_001137",
+        "em_001138",
+        "em_001139",
+        "em_001140"
+      ],
+      [
+        "em_000192",
+        "em_000193"
+      ],
+      [
+        "em_000276",
+        "em_000304"
+      ],
+      [
+        "em_000309",
+        "em_000314"
+      ],
+      [
+        "em_000344",
+        "em_000360"
+      ],
+      [
+        "em_000359",
+        "em_000363"
+      ]
+    ],
+    "split_labels": {
+      "train": {
+        "human": 170,
+        "ai": 488,
+        "mixed": 319
+      },
+      "validation": {
+        "human": 32,
+        "ai": 77,
+        "mixed": 79
+      },
+      "test": {
+        "human": 43,
+        "ai": 100,
+        "mixed": 63
+      }
+    }
+  },
+  "method": "Jaccard по трёхсловным фрагментам нормализованного текста; связи topic_id/template_id/group_id/seed_id",
+  "date": "2026-10-09"
+}
