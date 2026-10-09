@@ -1,8 +1,8 @@
 # Разметка и разбиение основного датасета
 
 Этот документ относится к `data/datasets/ai_assisted_spam_dataset.zip` и
-основной библиотеке `src/email_ai_detector/`. Датасет с парами `source/target`
-из отдельной папки `email_ai_detector/` имеет другую схему.
+основной библиотеке `src/email_ai_detector/`. Датасет с парами `source/target`, который собирают инструменты
+из `tools/dataset_generation`, имеет другую схему.
 
 ## Схема emails.jsonl
 
