@@ -44,11 +44,11 @@ def main() -> int:
     summary = {"source": source_name, "total": len(reports), "groups": {}}
 
     for name, items in sorted(grouped.items()):
-        scores = [item["analysis"]["ai_score"] for item in items]
-        verdicts = Counter(item["analysis"]["verdict"] for item in items)
+        scores = [item["analysis"]["text"]["ai_score"] for item in items]
+        verdicts = Counter(item["analysis"]["text"]["verdict"] for item in items)
         categories = Counter()
         for item in items:
-            for category, value in item["analysis"]["categories"].items():
+            for category, value in item["analysis"]["zones"].items():
                 if value >= args.category_threshold:
                     categories[category] += 1
         summary["groups"][name] = {
