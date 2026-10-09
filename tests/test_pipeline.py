@@ -1,5 +1,7 @@
 from email.message import EmailMessage
 import json
+from unittest import TestCase
+from unittest.mock import patch
 
 from email_ai_detector.data.eml import load_email_from_bytes
 from email_ai_detector.pipeline.analyze import EmailAnalyzer, summarize
@@ -57,3 +59,55 @@ def test_batch_preserves_reports_with_same_filename(tmp_path):
     for name in ("first", "second"):
         report = json.loads((results / name / "sample.json").read_text(encoding="utf-8"))
         assert report["path"] == str(tmp_path / name / "sample.eml")
+
+
+def test_batch_skips_invalid_emails_and_logs_reasons(tmp_path):
+    invalid = {
+        "01_empty.eml": b"",
+        "02_garbage.eml": b"not an email",
+        "03_mime.eml": b'From: a@example.org\r\nContent-Type: multipart/mixed; boundary="missing"\r\n\r\nbroken',
+        "04_no_body.eml": b"From: a@example.org\r\n\r\n",
+        "05_charset.eml": b'From: a@example.org\r\nContent-Type: text/plain; charset="unknown-charset"\r\n\r\nbody',
+    }
+    for name, content in invalid.items():
+        (tmp_path / name).write_bytes(content)
+    (tmp_path / "00_valid.eml").write_bytes(build_message())
+    (tmp_path / "99_valid.eml").write_bytes(build_message())
+    analyzer = EmailAnalyzer(HeuristicScorer(), results_dir=tmp_path / "out", summary_path=tmp_path / "all.json")
+    with TestCase().assertLogs("email_ai_detector", level="WARNING") as captured:
+        reports = analyzer.analyze_directory(tmp_path)
+    assert [report["file"] for report in reports] == ["00_valid.eml", "99_valid.eml"]
+    assert len(captured.output) == len(invalid)
+    for name in invalid:
+        assert any(str(tmp_path / name) in entry for entry in captured.output)
+        assert not (tmp_path / "out" / name).with_suffix(".json").exists()
+    assert len(json.loads((tmp_path / "all.json").read_text(encoding="utf-8"))) == 2
+    assert (tmp_path / "out" / "99_valid.json").exists()
+
+
+def test_batch_continues_after_analysis_error(tmp_path):
+    for name in ("01.eml", "02.eml", "03.eml"):
+        (tmp_path / name).write_bytes(build_message())
+    scorer = HeuristicScorer()
+    original = scorer.score_email
+    calls = 0
+
+    def score(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ValueError("private email content")
+        return original(**kwargs)
+
+    with patch.object(scorer, "score_email", side_effect=score):
+        with TestCase().assertLogs("email_ai_detector", level="WARNING") as captured:
+            reports = EmailAnalyzer(scorer).analyze_directory(tmp_path)
+    assert [report["file"] for report in reports] == ["01.eml", "03.eml"]
+    assert "02.eml" in captured.output[0]
+    assert "ValueError" in captured.output[0]
+    assert "private email content" not in captured.output[0]
+
+
+def test_email_without_subject_or_sender_is_valid():
+    email = load_email_from_bytes(b"To: recipient@example.org\r\n\r\nValid body")
+    assert email.text.strip() == "Valid body"

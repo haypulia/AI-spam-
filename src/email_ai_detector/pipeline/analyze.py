@@ -44,7 +44,6 @@ class EmailAnalyzer:
     def analyze_file(self, path: PathLike) -> Optional[Dict[str, object]]:
         email = load_email_from_file(path)
         if email is None:
-            logger.warning("не удалось загрузить письмо: %s", path)
             return None
         return self.analyze_email(email)
 
@@ -66,7 +65,14 @@ class EmailAnalyzer:
         reports: List[Dict[str, object]] = []
         for index, path in enumerate(files, start=1):
             logger.info("[%d/%d] %s", index, len(files), path.name)
-            report = self.analyze_file(path)
+            try:
+                report = self.analyze_file(path)
+            except Exception as error:
+                logger.warning(
+                    "письмо пропущено при анализе: %s | %s",
+                    path.resolve(), type(error).__name__,
+                )
+                continue
             if report is None:
                 continue
             reports.append(report)
