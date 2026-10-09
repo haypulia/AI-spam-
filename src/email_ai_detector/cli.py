@@ -12,7 +12,12 @@ from .evaluation.report import save_markdown
 from .evaluation.runner import plot_roc_curve, run_evaluation, save_report
 from .pipeline.analyze import EmailAnalyzer, summarize
 from .scoring import build_scorer
-from .scoring.training import train_document_model, train_explainer, train_segment_model
+from .scoring.training import (
+    train_document_model,
+    train_explainer,
+    train_image_model,
+    train_segment_model,
+)
 from .utils import save_json
 
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(message)s"
@@ -57,6 +62,13 @@ def command_train(args, settings) -> int:
     explainer = train_explainer(split.records, metadata=dict(metadata))
     explainer_path = explainer.save(settings.models_dir / "category_models.json")
     logging.info("модели зон объяснения сохранены: %s", explainer_path)
+
+    image_model = train_image_model(split.records, root, metadata=dict(metadata))
+    if image_model is None:
+        logging.info("модель изображений не обучена: в выборке нет размеченных картинок")
+    else:
+        image_path = image_model.save(settings.models_dir / "image_model.json")
+        logging.info("модель изображений сохранена: %s, картинок %d", image_path, image_model.metadata["samples"])
 
     if not args.skip_calibration:
         calibration_split = load_split(root, args.calibration_split)

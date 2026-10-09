@@ -81,11 +81,18 @@ __all__ = [
     "explain_for_soc",
 ]
 
-from .training import build_document_dataset, build_segment_dataset, train_document_model, train_segment_model
+from .training import (
+    build_document_dataset,
+    build_segment_dataset,
+    train_document_model,
+    train_image_model,
+    train_segment_model,
+)
 
 __all__ += [
     "build_document_dataset",
     "build_segment_dataset",
     "train_document_model",
+    "train_image_model",
     "train_segment_model",
 ]
