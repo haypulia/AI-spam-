@@ -84,10 +84,11 @@ docker compose -f docker/docker-compose.yml run --rm detector
 
 Письма кейса раскладываются в `data/raw` командой `python scripts/ingest_case_archive.py /path/to/AI_generated_emails.zip`.
 
-Схема разметки и правила дедупликации описаны в [docs/dataset.md](docs/dataset.md).
+Схема разметки и правила группировки описаны в [docs/dataset.md](docs/dataset.md).
 `python scripts/split_dataset.py` проверяет пересечения похожих писем между
 выборками; `--output data/interim/ai_assisted_spam_grouped` создаёт отдельное
-групповое разбиение. В исходном разбиении обнаружены пересечения похожих
+групповое разбиение с сохранением всех 1371 писем. Автоматическое удаление
+похожих писем отключено. В исходном разбиении обнаружены пересечения похожих
 текстов; для нового разбиения требуется переобучение и пересчёт метрик.
 
 ## Метрики

@@ -21,13 +21,17 @@ def test_audit_detects_normalized_duplicates_across_splits():
     assert report["cross_split_groups"] == 1
 
 
-def test_split_deduplicates_and_is_reproducible():
+def test_split_preserves_all_emails_and_is_reproducible():
     rows = examples()
     output, report = prepare_split(rows)
     reverse, reverse_report = prepare_split(list(reversed(rows)))
     assert output == reverse
     assert report == reverse_report
-    assert report["removed"] == [{"id": "b", "representative": "a"}]
+    assert report["removed"] == []
+    assert len(output) == len(rows)
+    for original in rows:
+        restored = next(row for row in output if row["id"] == original["id"])
+        assert {k: v for k, v in restored.items() if k not in ("split", "group_id")} == {k: v for k, v in original.items() if k not in ("split", "group_id")}
     assert report["audit"]["cross_split_groups"] == 0
     assert set(row["split"] for row in output) == {"train", "validation", "test"}
     assert rows[1]["split"] == "test"

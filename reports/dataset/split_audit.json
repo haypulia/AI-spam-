@@ -7,42 +7,44 @@
     "test": 0.15
   },
   "input_count": 1371,
-  "output_count": 1152,
+  "output_count": 1371,
+  "removed": [],
+  "deduplication": "disabled: сохраняются все исходные письма",
   "groups": 904,
   "largest_group": 17,
   "split_sizes": {
-    "train": 787,
-    "validation": 182,
-    "test": 183
+    "train": 931,
+    "validation": 220,
+    "test": 220
   },
   "audit": {
-    "count": 1152,
+    "count": 1371,
     "groups": 904,
-    "similar_pairs": 119,
+    "similar_pairs": 593,
     "cross_split_groups": 0,
     "invalid_split_ids": [],
     "cross_split_examples": [],
     "split_labels": {
       "train": {
-        "human": 165,
-        "ai": 304,
-        "mixed": 318
+        "human": 173,
+        "ai": 431,
+        "mixed": 327
       },
       "validation": {
-        "human": 35,
-        "ai": 81,
-        "mixed": 66
+        "mixed": 67,
+        "human": 36,
+        "ai": 117
       },
       "test": {
-        "human": 35,
-        "mixed": 66,
-        "ai": 82
+        "human": 36,
+        "mixed": 67,
+        "ai": 117
       }
     }
   },
   "input_file": "data\\datasets\\ai_assisted_spam_dataset.zip",
   "input_sha256": "27e38af8ec300a19123108b701e4ac73ef9663048b24b7f275ae01c096ecd0f8",
-  "removed_count": 219,
+  "removed_count": 0,
   "original_audit": {
     "count": 1371,
     "groups": 904,
@@ -116,6 +118,6 @@
       }
     }
   },
-  "method": "Jaccard по трёхсловным фрагментам нормализованного текста; связи topic_id/template_id/group_id/seed_id",
-  "date": "2026-10-09"
+  "method": "Групповое разбиение без удаления писем; Jaccard по трёхсловным фрагментам; связи topic_id/template_id/group_id/seed_id",
+  "date": "2026-10-10"
 }

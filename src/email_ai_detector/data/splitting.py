@@ -1,4 +1,4 @@
-"""Дедупликация и групповое разбиение основного emails.jsonl."""
+"""Групповое разбиение без удаления писем основного emails.jsonl."""
 
 import hashlib
 import html
@@ -105,32 +105,14 @@ def find_groups(rows: List[dict], threshold: float = 0.85):
     return list(groups.values()), similar
 
 
-def _annotation_key(row):
-    return row["label"], tuple(sorted(set(row.get("ai_elements", []))))
-
-
 def prepare_split(rows: List[dict], threshold: float = 0.85, seed: int = 42):
-    # Порядок входного файла не влияет на выбор представителей и разбиение.
     rows = sorted(rows, key=lambda row: row.get("id", ""))
-    groups, similar = find_groups(rows, threshold)
-    neighbors = defaultdict(set)
-    for first, second, _ in similar:
-        neighbors[first].add(second)
-        neighbors[second].add(first)
-    removed = {}
-    representatives = set()
-    for index, row in enumerate(rows):
-        duplicate = next((other for other in sorted(neighbors[index] & representatives)
-                          if _annotation_key(rows[other]) == _annotation_key(row)), None)
-        if duplicate is None:
-            representatives.add(index)
-        else:
-            removed[index] = duplicate
-    retained_groups = [[i for i in group if i not in removed] for group in groups]
-    if len(retained_groups) < 3:
+    groups, _ = find_groups(rows, threshold)
+    retained_groups = groups
+    if len(groups) < 3:
         raise ValueError("меньше трёх независимых групп: разбиение без утечек невозможно")
-    labels = Counter(rows[i]["label"] for i in representatives)
-    total = len(representatives)
+    labels = Counter(row["label"] for row in rows)
+    total = len(rows)
     best = None
     for attempt in range(32):
         rng = random.Random(seed + attempt)
@@ -181,8 +163,8 @@ def prepare_split(rows: List[dict], threshold: float = 0.85, seed: int = 42):
     report = {
         "seed": seed, "similarity_threshold": threshold, "target_ratios": SPLIT_RATIOS,
         "input_count": len(rows), "output_count": len(output),
-        "removed": [{"id": rows[i]["id"], "representative": rows[j]["id"]}
-                    for i, j in sorted(removed.items())],
+        "removed": [],
+        "deduplication": "disabled: сохраняются все исходные письма",
         "groups": len(groups), "largest_group": max(map(len, groups)),
         "split_sizes": best[2], "audit": audit,
     }
